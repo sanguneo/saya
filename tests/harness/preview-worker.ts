@@ -1,4 +1,6 @@
 import { build, preview } from "vite";
+import { summaryConfig } from "../../server/summary";
+import { summaryPlugin } from "../../server/summary-plugin";
 
 const root = process.env.SAYA_QA_ROOT;
 const bridge = process.env.SAYA_QA_BRIDGE;
@@ -13,6 +15,8 @@ const server = await preview({
   configFile: false,
   logLevel: "error",
   plugins: [
+    // Off unless the QA run sets SAYA_SUMMARY_URL/MODEL (a synthetic model).
+    summaryPlugin(summaryConfig(process.env)),
     {
       name: "synthetic-qa-blank",
       configurePreviewServer(previewServer) {

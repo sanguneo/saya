@@ -32,6 +32,7 @@ import { HistorySource } from "../features/history/source";
 import { NoticeBar } from "../features/notice";
 import { RecapEntry } from "../features/recap";
 import { RoomsPane, useCatalog, useSlice } from "../features/rooms";
+import { SummaryEntry } from "../features/summary";
 import { useAppliedTheme } from "../features/theme";
 import { ThreadPane } from "../features/thread";
 import { YearAgo } from "../features/yearago";
@@ -242,6 +243,7 @@ function RoomOutlet({
             {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
           </div>
           <div className={styles.actions} ref={toggle}>
+            <SummaryEntry stores={stores} roomId={roomId} />
             <DigestEntry stores={stores} http={http} roomId={roomId} />
             <RecapEntry stores={stores} history={history} roomId={roomId} />
             <AttachmentsToggle

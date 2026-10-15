@@ -13,6 +13,7 @@ import { type HttpClient, HttpProtocolError } from "../../transport/http";
 import { AttachButton, StagedFile } from "../attach";
 import { useCoreUploadLimit } from "../attach/core";
 import styles from "./Composer.module.css";
+import { takeDraftOffers, withOffer } from "./offer";
 import { ComposerState, type ConsentFingerprint, ImeEnterGuard } from "./state";
 
 type SendResult = components["schemas"]["SendResult"];
@@ -160,6 +161,18 @@ export const Composer = memo(function Composer({
     );
     setRevision((value) => value + 1);
   };
+
+  // Text offered by another surface fills the box only; sending stays the person's press.
+  const takeOffer = useRef((_text: string) => {});
+  takeOffer.current = (text: string) => {
+    const next = withOffer(state.getDraft(roomId).text, text);
+    changed(next, next.length, next.length);
+    inputRef.current?.focus();
+  };
+  useEffect(
+    () => takeDraftOffers(roomId, (text) => takeOffer.current(text)),
+    [roomId],
+  );
 
   const preview = async () => {
     const fingerprint = requestFingerprint(roomId, state);

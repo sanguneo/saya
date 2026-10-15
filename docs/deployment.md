@@ -260,3 +260,31 @@ continues to call relative `/api` paths only.
 A successful unauthenticated `GET /health` shows only that the core is alive.
 It does not prove the bearer configuration is valid or that authenticated routes
 will succeed.
+
+## The summary panel (optional)
+
+`/summary` is off by default and is **not** part of either messenger contract.
+When it is on, a room header shows 오모냥 요약: the browser sends the newest text
+messages it already holds for that room (at most 60, text, sender, time) to
+saya's server, which forwards them to a language model and answers
+`{ decisions, todos, draft }`. The panel can put the draft into the input box;
+it never sends anything — the person still presses 보내기.
+
+```sh
+SAYA_SUMMARY_URL=http://127.0.0.1:4000/v1 \
+SAYA_SUMMARY_MODEL=<model id> \
+SAYA_SUMMARY_KEY=<optional bearer key> \
+bun server/serve.ts
+```
+
+- Any OpenAI-compatible `POST <url>/chat/completions` works. Point it at a model
+  you are allowed to send these conversations to: turning this on means message
+  text leaves the browser for that endpoint. A loopback or tailnet model keeps
+  it on your machines.
+- The key, if any, is held by the server only; the browser sees
+  `{ enabled: true }` and nothing else about the configuration.
+- Unset either variable and `GET /summary` answers 404, so the control is not
+  drawn. `deploy/Caddyfile.example` routes `/summary` after the write rules,
+  because its POST is a write.
+- The model's answer is shown as text and is never acted on: a reply that is not
+  the expected JSON is reported as an error in the panel.

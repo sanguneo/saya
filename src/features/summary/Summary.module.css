@@ -1,0 +1,181 @@
+/*
+ * The summary sheet follows the digest sheet's grammar (Digest.module.css):
+ * the wall's own field, a 1px rule, no shadow, no radius, only the body
+ * scrolls. Tokens only, so a custom theme reaches it the same way.
+ */
+.sheet[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(100% - var(--space-32), calc(var(--measure) + var(--space-48)));
+  max-width: none;
+  max-height: calc(100dvh - 2 * var(--space-32));
+  margin: auto;
+  padding: 0;
+  border: var(--rule-width) solid var(--rule);
+  background: var(--field-wall);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.sheet::backdrop {
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+@media (max-width: 767.98px) {
+  .sheet[open] {
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  min-height: var(--space-48);
+  padding: var(--space-12) var(--space-24);
+  border-block-end: var(--rule-width) solid var(--rule);
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-4) var(--space-12);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-title);
+  font-weight: 600;
+  line-height: var(--leading-title);
+}
+
+.room {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.close {
+  margin-inline-start: auto;
+}
+
+.body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-24);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+  padding: var(--space-16) var(--space-24) var(--space-24);
+}
+
+@media (max-width: 767.98px) {
+  .head,
+  .body {
+    padding-inline: var(--space-16);
+  }
+}
+
+.muted {
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.label {
+  color: var(--ink);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  line-height: var(--leading-meta);
+}
+
+.items {
+  display: grid;
+  gap: var(--space-4);
+  padding-inline-start: var(--space-16);
+  list-style: disc;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+/* The draft reads like the person's own bubble: it is what they would say. */
+.draft {
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-bubble);
+  background: var(--bubble-self);
+  color: var(--bubble-self-ink, var(--ink));
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.insertRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-12);
+}
+
+.action {
+  flex: none;
+  min-height: var(--space-32);
+  padding: var(--space-4) var(--space-16);
+  border: var(--rule-width) solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--hover-wall);
+}
+
+@media (max-width: 767.98px) {
+  .action {
+    min-height: var(--touch-min);
+  }
+}
+
+.notice {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border: var(--rule-width) solid var(--rule);
+  color: var(--ink);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+
+.notice code {
+  font: inherit;
+  color: var(--ink-muted);
+}
+
+.loading {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-12);
+  padding: var(--space-32) var(--space-24);
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}

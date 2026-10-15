@@ -6,6 +6,8 @@ import {
   adapterUpstreams,
 } from "./server/adapters";
 import { unfurlPlugin } from "./server/plugin";
+import { summaryConfig } from "./server/summary";
+import { summaryPlugin } from "./server/summary-plugin";
 import { writesPlugin } from "./server/writes";
 
 export default defineConfig(({ mode }) => {
@@ -23,6 +25,8 @@ export default defineConfig(({ mode }) => {
       react(),
       writesPlugin(),
       unfurlPlugin(),
+      // Opt-in: /summary answers only when SAYA_SUMMARY_URL and SAYA_SUMMARY_MODEL are set.
+      summaryPlugin(summaryConfig(env)),
       adaptersPlugin(adapters),
     ],
     server: {
