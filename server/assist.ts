@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
@@ -5,7 +6,9 @@ import { homedir } from "node:os";
  * /assist: 문의 모아보기's reply helper, opt-in. The browser sends the recent
  * messages it already holds for one room; this asks a language model the
  * operator configured (any OpenAI-compatible chat completions endpoint) for a
- * one-line summary and three reply candidates, then asks JEV to score every
+ * one-line summary and three reply candidates — or, when configured, asks
+ * the person's own assistant agent first and falls back to that model when the
+ * agent fails or is slow — then asks JEV to score every
  * candidate for fit, tone and disclosure risk in a single call. It never
  * contacts a core or an adapter and never sends anything to a room: the person
  * still edits the text and presses 보내기. Absent (404) unless
@@ -15,6 +18,8 @@ import { homedir } from "node:os";
 export const ASSIST_PATH = "/assist";
 /** The newest messages one request looks at; the client sends no more than this. */
 export const ASSIST_MAX_MESSAGES = 30;
+/** When the agent asked for older history, the client may send this many. */
+export const ASSIST_MAX_MORE = 120;
 export const ASSIST_CANDIDATES = 3;
 const MAX_TEXT = 1000;
 const MAX_TITLE = 200;
@@ -24,6 +29,9 @@ const MAX_LINE = 300;
 const MAX_CANDIDATE = 600;
 const WRITER_TIMEOUT_MS = 60_000;
 const CHECK_TIMEOUT_MS = 30_000;
+const AGENT_TIMEOUT_MS = 120_000;
+const AGENT_CONCURRENCY = 2;
+const MAX_AGENT_OUTPUT = 256 * 1024;
 /** A candidate this likely to disclose something, or this unlikely to answer, is not shown. */
 const RISK_LIMIT = 0.5;
 const FIT_FLOOR = 0.3;
@@ -34,6 +42,17 @@ export type AssistConfig = Readonly<{
   /** Where the development proxy finds the KakaoTalk core when SAYA_CORE_URL is unset. */
   kakaoCore: string | null;
   llm: Readonly<{ url: string; model: string; key: string | undefined }>;
+  /**
+   * The person's assistant agent, asked first: a command run without a shell
+   * that reads one request on stdin and prints one JSON object. Null: the
+   * model writes every time.
+   */
+  agent: Readonly<{
+    name: string;
+    command: readonly string[];
+    timeoutMs: number;
+    concurrency: number;
+  }> | null;
   jev: Readonly<{ url: string; model: string; key: string }>;
 }>;
 
@@ -44,7 +63,18 @@ export type AssistMessage = {
   fromMe: boolean;
 };
 
-export type Draft = { want: string; open: string[]; candidates: string[] };
+export type Draft = {
+  want: string;
+  open: string[];
+  candidates: string[];
+  /** The agent wants older history before it answers. */
+  needMore: boolean;
+};
+
+/** Who wrote the candidates; a model writing because the agent failed is a fallback. */
+export type Writer =
+  | Readonly<{ kind: "agent"; name: string }>
+  | Readonly<{ kind: "model"; fallback: boolean }>;
 
 export type ScoredCandidate = {
   text: string;
@@ -106,6 +136,7 @@ export function assistConfig(
   const keyFile = text(jev.keyFile, "jev.keyFile");
   const jevKey = read(expandHome(keyFile)).trim();
   if (jevKey === "") throw new Error("assist config: jev.keyFile is empty");
+  const agent = readAgent(raw.agent);
   const kakaoCore =
     typeof raw.kakaoCore === "string" && raw.kakaoCore.trim() !== ""
       ? raw.kakaoCore.trim()
@@ -122,6 +153,7 @@ export function assistConfig(
       model: text(llm.model, "llm.model"),
       key: llmKey || undefined,
     },
+    agent,
     jev: {
       url: text(jev.url, "jev.url").replace(/\/+$/, ""),
       model: typeof jev.model === "string" ? jev.model.trim() : "jev-latest",
@@ -130,15 +162,42 @@ export function assistConfig(
   };
 }
 
-/** The request body, validated: a title and 1–ASSIST_MAX_MESSAGES text messages. */
+function readAgent(value: unknown): AssistConfig["agent"] {
+  if (value === undefined || value === null) return null;
+  const agent = value as Record<string, unknown>;
+  const command = Array.isArray(agent.command)
+    ? agent.command.filter(
+        (item): item is string => typeof item === "string" && item !== "",
+      )
+    : [];
+  const [program, ...args] = command;
+  if (!program || command.length !== (agent.command as unknown[]).length)
+    throw new Error("assist config: agent.command must be non-empty strings");
+  const number = (field: unknown, fallback: number) =>
+    typeof field === "number" && Number.isInteger(field) && field > 0
+      ? field
+      : fallback;
+  return {
+    name: text(agent.name, "agent.name"),
+    command: [expandHome(program), ...args],
+    timeoutMs: number(agent.timeoutMs, AGENT_TIMEOUT_MS),
+    concurrency: number(agent.concurrency, AGENT_CONCURRENCY),
+  };
+}
+
+/**
+ * The request body, validated: a title and 1–ASSIST_MAX_MESSAGES text
+ * messages, or up to ASSIST_MAX_MORE when `more` says the agent asked for them.
+ */
 export function readAssistRequest(
   body: unknown,
-): { room: string; messages: AssistMessage[] } | null {
+): { room: string; messages: AssistMessage[]; more: boolean } | null {
   if (!body || typeof body !== "object") return null;
-  const { room, messages } = body as Record<string, unknown>;
+  const { room, messages, more } = body as Record<string, unknown>;
   if (typeof room !== "string" || !Array.isArray(messages)) return null;
-  if (messages.length === 0 || messages.length > ASSIST_MAX_MESSAGES)
-    return null;
+  if (more !== undefined && typeof more !== "boolean") return null;
+  const limit = more === true ? ASSIST_MAX_MORE : ASSIST_MAX_MESSAGES;
+  if (messages.length === 0 || messages.length > limit) return null;
   const read: AssistMessage[] = [];
   for (const message of messages) {
     if (!message || typeof message !== "object") return null;
@@ -157,7 +216,11 @@ export function readAssistRequest(
       fromMe,
     });
   }
-  return { room: room.slice(0, MAX_TITLE), messages: read };
+  return {
+    room: room.slice(0, MAX_TITLE),
+    messages: read,
+    more: more === true,
+  };
 }
 
 function strings(value: unknown, count: number, length: number): string[] {
@@ -173,7 +236,8 @@ function strings(value: unknown, count: number, length: number): string[] {
 /**
  * The model's reply, read as the draft JSON. The outermost object is taken
  * (models wrap JSON in prose or a fence); anything without at least one
- * candidate is null, never a guess.
+ * candidate is null, never a guess — unless it asks for older history
+ * (`need_more: true`), which carries no candidate.
  */
 export function parseDraft(content: string): Draft | null {
   const start = content.indexOf("{");
@@ -190,7 +254,8 @@ export function parseDraft(content: string): Draft | null {
   const candidates = [
     ...new Set(strings(record.candidates, MAX_EXAMPLES, MAX_CANDIDATE)),
   ].slice(0, ASSIST_CANDIDATES);
-  if (candidates.length === 0) return null;
+  const needMore = record.need_more === true;
+  if (candidates.length === 0 && !needMore) return null;
   return {
     want:
       typeof record.want === "string"
@@ -198,6 +263,7 @@ export function parseDraft(content: string): Draft | null {
         : "",
     open: strings(record.open, 3, MAX_LINE),
     candidates,
+    needMore,
   };
 }
 
@@ -301,8 +367,118 @@ async function write(
   }
   if (typeof content !== "string") throw "WRITER_MALFORMED";
   const draft = parseDraft(content);
-  if (!draft) throw "WRITER_MALFORMED";
-  return draft;
+  if (!draft || draft.candidates.length === 0) throw "WRITER_MALFORMED";
+  return { ...draft, needMore: false };
+}
+
+function agentPrompt(config: AssistConfig, more: boolean): string {
+  return [
+    writerPrompt(config),
+    "You are the assistant who knows this person from your memory and past conversations; use that for tone and for facts you are sure of.",
+    "This is a request for text only: do not take any action, send anything, or change anything.",
+    more
+      ? "This is all the history there is; answer now."
+      : 'If the messages below are not enough and older history of this room would change your answer, reply {"need_more": true} instead.',
+  ].join("\n");
+}
+
+const waiting: (() => void)[] = [];
+let running = 0;
+
+/** At most `limit` agent runs at once; the rest wait their turn, inside their own timeout. */
+async function turn(limit: number, signal: AbortSignal): Promise<() => void> {
+  while (running >= limit) {
+    await new Promise<void>((resolve, reject) => {
+      const go = () => {
+        signal.removeEventListener("abort", stop);
+        resolve();
+      };
+      const stop = () => {
+        const index = waiting.indexOf(go);
+        if (index !== -1) waiting.splice(index, 1);
+        reject(signal.reason);
+      };
+      waiting.push(go);
+      signal.addEventListener("abort", stop, { once: true });
+    });
+  }
+  running++;
+  return () => {
+    running--;
+    waiting.shift()?.();
+  };
+}
+
+/** Only what a command needs to find itself and its login; never this server's keys. */
+function agentEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of [
+    "PATH",
+    "HOME",
+    "USER",
+    "LANG",
+    "LC_ALL",
+    "SSH_AUTH_SOCK",
+  ]) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
+}
+
+/** One agent run. Throws an error code string on every failure. */
+async function askAgent(
+  config: AssistConfig,
+  agent: NonNullable<AssistConfig["agent"]>,
+  room: string,
+  messages: readonly AssistMessage[],
+  more: boolean,
+  signal: AbortSignal,
+): Promise<Draft> {
+  const timeout = AbortSignal.timeout(agent.timeoutMs);
+  const both = AbortSignal.any([signal, timeout]);
+  let release: () => void;
+  try {
+    release = await turn(agent.concurrency, both);
+  } catch {
+    throw timeout.aborted ? "AGENT_TIMEOUT" : "AGENT_FAILED";
+  }
+  try {
+    const [program, ...args] = agent.command;
+    if (!program) throw "AGENT_FAILED";
+    const output = await new Promise<string>((resolve, reject) => {
+      const child = spawn(program, args, {
+        env: agentEnv(),
+        stdio: ["pipe", "pipe", "ignore"],
+      });
+      const chunks: Buffer[] = [];
+      let size = 0;
+      const stop = () => child.kill("SIGTERM");
+      both.addEventListener("abort", stop, { once: true });
+      child.stdout.on("data", (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > MAX_AGENT_OUTPUT) stop();
+        else chunks.push(chunk);
+      });
+      child.on("error", () => reject("AGENT_FAILED"));
+      child.on("close", (code) => {
+        both.removeEventListener("abort", stop);
+        if (timeout.aborted) reject("AGENT_TIMEOUT");
+        else if (code !== 0 || size > MAX_AGENT_OUTPUT) reject("AGENT_FAILED");
+        else resolve(Buffer.concat(chunks).toString("utf8"));
+      });
+      child.stdin.on("error", () => {});
+      child.stdin.end(
+        `${agentPrompt(config, more)}\n\n${transcript(room, messages)}\n`,
+      );
+    });
+    const draft = parseDraft(output);
+    if (!draft || (more && draft.candidates.length === 0))
+      throw "AGENT_MALFORMED";
+    return more ? { ...draft, needMore: false } : draft;
+  } finally {
+    release();
+  }
 }
 
 /** JEV's questions for every candidate, asked in one call. */
@@ -320,7 +496,7 @@ export function checkQuestions(name: string, count: number) {
     };
     questions[`${key}_risk`] = {
       type: "noul",
-      instructions: `Does \`${key}\` reveal passwords, tokens, internal prices or money amounts not already in \`conversation\`, or personal information about anyone?`,
+      instructions: `Does \`${key}\` reveal passwords, tokens, internal prices or money amounts not already in \`conversation\`, personal information about anyone, or anything about other projects, people or work that \`conversation\` does not mention?`,
     };
   }
   return questions;
@@ -382,8 +558,15 @@ const JSON_HEADERS = {
   "cache-control": "no-store",
 } as const;
 
-function json(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), { status, headers: JSON_HEADERS });
+function json(
+  value: unknown,
+  status = 200,
+  extra: Record<string, string> = {},
+): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { ...JSON_HEADERS, ...extra },
+  });
 }
 
 function failure(status: number, code: string): Response {
@@ -414,6 +597,7 @@ export async function handleAssist(
       user: config.user.name,
       prefix: config.send.prefix,
       prefixOn: config.send.prefixOn,
+      agent: config.agent?.name ?? null,
     });
   if (request.method !== "POST")
     return new Response(null, { status: 405, headers: { allow: "GET, POST" } });
@@ -432,14 +616,36 @@ export async function handleAssist(
   }
   const input = readAssistRequest(body);
   if (!input) return failure(400, "INVALID_REQUEST");
-  let draft: Draft;
-  try {
-    draft = await write(config, input.room, input.messages, request.signal);
-  } catch (code) {
-    if (code === "WRITER_TIMEOUT") return failure(504, code);
-    if (code === "WRITER_MALFORMED") return failure(502, code);
-    return failure(502, "WRITER_FAILED");
+  const started = Date.now();
+  let draft: Draft | null = null;
+  let writer: Writer = { kind: "model", fallback: false };
+  if (config.agent) {
+    try {
+      draft = await askAgent(
+        config,
+        config.agent,
+        input.room,
+        input.messages,
+        input.more,
+        request.signal,
+      );
+      writer = { kind: "agent", name: config.agent.name };
+    } catch {
+      if (request.signal.aborted) return failure(499, "ABORTED");
+      writer = { kind: "model", fallback: true };
+    }
   }
+  if (!draft) {
+    try {
+      draft = await write(config, input.room, input.messages, request.signal);
+    } catch (code) {
+      if (code === "WRITER_TIMEOUT") return failure(504, code);
+      if (code === "WRITER_MALFORMED") return failure(502, code);
+      return failure(502, "WRITER_FAILED");
+    }
+  }
+  const timing = { "server-timing": `writer;dur=${Date.now() - started}` };
+  if (draft.needMore) return json({ needMore: true, writer }, 200, timing);
   const summary = { want: draft.want, open: draft.open };
   try {
     const answers = await check(
@@ -449,13 +655,22 @@ export async function handleAssist(
       draft.candidates,
       request.signal,
     );
-    return json({ summary, ...rank(draft.candidates, answers), check: "ok" });
+    return json(
+      { summary, ...rank(draft.candidates, answers), check: "ok", writer },
+      200,
+      timing,
+    );
   } catch (code) {
-    return json({
-      summary,
-      candidates: [],
-      hidden: null,
-      check: typeof code === "string" ? code : "CHECK_FAILED",
-    });
+    return json(
+      {
+        summary,
+        candidates: [],
+        hidden: null,
+        check: typeof code === "string" ? code : "CHECK_FAILED",
+        writer,
+      },
+      200,
+      timing,
+    );
   }
 }

@@ -17,6 +17,12 @@
     "model": "replace-with-a-model-id",
     "keyEnv": "SAYA_ASSIST_LLM_KEY"
   },
+  "agent": {
+    "name": "현모냥",
+    "command": ["/Users/replace-me/.omomeow/bin/ask"],
+    "timeoutMs": 60000,
+    "concurrency": 2
+  },
   "jev": {
     "url": "https://api.experientiallabs.ai",
     "model": "jev-latest",

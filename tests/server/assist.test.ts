@@ -1,4 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   type AssistConfig,
   assistConfig,
@@ -30,6 +33,7 @@ const config: AssistConfig = {
   send: { prefix: "", prefixOn: false },
   kakaoCore: null,
   llm: { url: `${base}/v1`, model: "fake-writer", key: "writer-key" },
+  agent: null,
   jev: { url: base, model: "jev-latest", key: "checker-key" },
 };
 
@@ -161,6 +165,7 @@ describe("assist", () => {
       user: "현지님",
       prefix: "",
       prefixOn: false,
+      agent: null,
     });
     expect(text).not.toContain("key");
     expect(text).not.toContain(base);
@@ -210,5 +215,123 @@ describe("assist", () => {
       parseDraft('{"candidates":["a","a","b","c","d"]}')?.candidates,
     ).toEqual(["a", "b", "c"]);
     expect(() => rank(["a"], { c1_fit: 1 })).toThrow();
+  });
+});
+
+/** A stand-in agent: records what it was given, then answers the way it is told (or never). */
+const agentDir = mkdtempSync(join(tmpdir(), "saya-agent-"));
+afterAll(() => rmSync(agentDir, { recursive: true, force: true }));
+const agentScript = join(agentDir, "agent.ts");
+writeFileSync(
+  agentScript,
+  `const [mode, record] = process.argv.slice(2);
+const input = await Bun.stdin.text();
+await Bun.write(record, JSON.stringify({ input, env: Object.keys(process.env) }));
+if (mode === "hang") await new Promise(() => {});
+if (mode === "fail") process.exit(1);
+if (mode === "more") console.log('{"need_more": true}');
+else console.log('생각해 보니 {"want":"예약 변경","open":[],"candidates":["에이전트 답"]}');
+`,
+);
+
+function withAgent(mode: string, timeoutMs = 20_000) {
+  const record = join(agentDir, `${mode}-${Math.random()}.json`);
+  return {
+    record,
+    config: {
+      ...config,
+      agent: {
+        name: "오모냥",
+        command: [process.execPath, agentScript, mode, record],
+        timeoutMs,
+        concurrency: 2,
+      },
+    } satisfies AssistConfig,
+  };
+}
+
+const GOOD_CHECK = () =>
+  Response.json({
+    answers: {
+      c1_fit: { noul: 0.9 },
+      c1_tone: { noul: 0.8 },
+      c1_risk: { noul: 0.02 },
+      c2_fit: { noul: 0.9 },
+      c2_tone: { noul: 0.8 },
+      c2_risk: { noul: 0.02 },
+      c3_fit: { noul: 0.9 },
+      c3_tone: { noul: 0.8 },
+      c3_risk: { noul: 0.02 },
+    },
+  });
+
+describe("assist with an agent", () => {
+  test("the agent writes from the transcript on stdin, sees none of this server's keys, and JEV still checks it", async () => {
+    seen.length = 0;
+    checker = GOOD_CHECK;
+    process.env.SAYA_TEST_SECRET = "s";
+    const { record, config: agentConfig } = withAgent("ok");
+    const answer = await handleAssist(
+      post({ room: "가상 문의방", messages }),
+      agentConfig,
+    );
+    delete process.env.SAYA_TEST_SECRET;
+    const body = (await answer?.json()) as {
+      candidates: { text: string }[];
+      writer: unknown;
+    };
+    expect(body.writer).toEqual({ kind: "agent", name: "오모냥" });
+    expect(body.candidates.map((item) => item.text)).toEqual(["에이전트 답"]);
+    expect(seen.map((item) => item.path)).toEqual(["/v1/systemone"]);
+    expect(answer?.headers.get("server-timing")).toMatch(/^writer;dur=\d+$/);
+    const given = JSON.parse(readFileSync(record, "utf8")) as {
+      input: string;
+      env: string[];
+    };
+    expect(given.input).toContain("예약 시간 바꿀 수 있나요?");
+    expect(given.env).not.toContain("SAYA_TEST_SECRET");
+  });
+
+  test("a failing or silent agent falls back to the model, and says so", async () => {
+    writer = () => completion(DRAFT);
+    checker = GOOD_CHECK;
+    for (const agent of [withAgent("fail"), withAgent("hang", 300)]) {
+      seen.length = 0;
+      const answer = await handleAssist(
+        post({ room: "가상", messages }),
+        agent.config,
+      );
+      const body = (await answer?.json()) as { writer: unknown; check: string };
+      expect(body.writer).toEqual({ kind: "model", fallback: true });
+      expect(body.check).toBe("ok");
+      expect(seen[0]?.path).toBe("/v1/chat/completions");
+    }
+  });
+
+  test("need_more goes back to the screen unchecked; asked again with more, the agent must answer or the model does", async () => {
+    seen.length = 0;
+    writer = () => completion(DRAFT);
+    checker = GOOD_CHECK;
+    const { config: agentConfig } = withAgent("more");
+    const first = await handleAssist(
+      post({ room: "가상", messages }),
+      agentConfig,
+    );
+    expect(await first?.json()).toEqual({
+      needMore: true,
+      writer: { kind: "agent", name: "오모냥" },
+    });
+    expect(seen).toHaveLength(0);
+    const many = Array.from({ length: 100 }, () => messages[0]);
+    const again = await handleAssist(
+      post({ room: "가상", messages: many, more: true }),
+      agentConfig,
+    );
+    const body = (await again?.json()) as { writer: unknown };
+    expect(body.writer).toEqual({ kind: "model", fallback: true });
+    expect(
+      (await handleAssist(post({ room: "가상", messages: many }), agentConfig))
+        ?.status,
+    ).toBe(400);
   });
 });

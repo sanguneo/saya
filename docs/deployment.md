@@ -287,8 +287,22 @@ Everything that changes per person is one file, named by `SAYA_ASSIST_CONFIG`
   `SAYA_CORE_URL` is unset. Production still reaches cores by registration.
 - `llm.url`, `llm.model`, `llm.keyEnv` (the name of the env variable holding the key).
 - `jev.url`, `jev.model`, `jev.keyFile` (a path to a file holding the key).
+- `agent` (optional): the person's own assistant, asked before the model.
+  `agent.name` is shown on the candidates ("<name> 판단"); `agent.command` is an
+  argv run without a shell that reads one request (instructions and the
+  transcript) on stdin and prints one JSON object, `{ want, open, candidates }`
+  or `{ "need_more": true }`; `agent.timeoutMs` (default 120000) and
+  `agent.concurrency` (default 2). The command gets only `PATH`, `HOME`, `USER`,
+  `LANG`, `LC_ALL` and `SSH_AUTH_SOCK`, never this server's keys. It must not
+  read KakaoTalk itself: the transcript is what saya already holds. A
+  `need_more` answer makes the room widen its wall once and ask again with up
+  to 120 messages; that answer stands. An agent that fails, times out or
+  answers out of shape is replaced by the model for that request, and the
+  candidates say "모델 대체". JEV checks the agent's candidates exactly as it
+  checks the model's.
 
-`GET /assist` returns `{ enabled, user, prefix, prefixOn }` and nothing about
+`GET /assist` returns `{ enabled, user, prefix, prefixOn, agent }` (the agent's
+name or null) and nothing about
 addresses or keys. Point the model at one you are allowed to send these
 conversations to. Route `/assist` to saya's server after the write rules, as
 for `/unfurl`.

@@ -81,6 +81,8 @@
 }
 
 .grid {
+  /* The last row whether or not the phone tabs are drawn above it. */
+  grid-row: 3;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-auto-rows: minmax(0, 1fr);
@@ -117,6 +119,7 @@
 }
 
 .cellHead {
+  grid-row: 1;
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -164,6 +167,7 @@
 }
 
 .summary {
+  grid-row: 2;
   display: grid;
   gap: 2px;
   padding: 6px var(--space-12);
@@ -181,10 +185,31 @@
   -webkit-line-clamp: 2;
 }
 
+/* Fixed rows, so a room with no summary yet keeps its wall in the stretching row. */
 .wall {
+  grid-row: 3;
+  position: relative;
   display: grid;
   min-height: 0;
   min-width: 0;
+}
+
+/* Rows scrolled out above or below fade out instead of looking cut off. */
+.wall[data-above]::before,
+.wall[data-below]::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+  height: var(--space-32);
+  background: linear-gradient(var(--field-wall), transparent);
+  content: "";
+  pointer-events: none;
+}
+
+.wall[data-below]::after {
+  inset: auto 0 0;
+  height: 24px;
+  background: linear-gradient(transparent, var(--field-wall));
 }
 
 .wall > * {
@@ -192,17 +217,36 @@
 }
 
 .help {
+  grid-row: 4;
   display: grid;
   gap: 6px;
   max-height: 184px;
   min-height: 0;
   padding: var(--space-8) var(--space-12);
   overflow-y: auto;
+  overflow-anchor: none;
   border-top: var(--rule-width) solid var(--seam);
   background: var(--field-list);
 }
 
+/* The candidate box scrolls under its heading and fades at its foot while more is below. */
+.help::after {
+  position: sticky;
+  bottom: calc(-1 * var(--space-8));
+  height: 24px;
+  margin-top: -6px;
+  background: linear-gradient(transparent, var(--field-list));
+  content: "";
+  pointer-events: none;
+}
+
 .helpHead {
+  position: sticky;
+  z-index: 1;
+  top: calc(-1 * var(--space-8));
+  margin-top: calc(-1 * var(--space-8));
+  padding-top: var(--space-8);
+  background: var(--field-list);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -213,6 +257,16 @@
   margin: 0;
   font-size: var(--text-meta);
   font-weight: 700;
+}
+
+/* Who wrote the candidates: the assistant agent, or the model in its place. */
+.writer {
+  margin-inline-start: var(--space-8);
+  padding: 1px 6px;
+  border-radius: var(--radius-badge);
+  background: var(--fill-wall);
+  color: var(--ink-muted);
+  font-weight: 400;
 }
 
 .candidates {
@@ -269,6 +323,27 @@
   font-size: var(--text-meta);
 }
 
+.candidates li {
+  display: grid;
+}
+
+.more {
+  justify-self: end;
+  min-height: 24px;
+  padding: 0 var(--space-8);
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-meta);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.candidates li[data-open] .candidateText {
+  display: block;
+}
+
 .problem,
 .off {
   margin: 0;
@@ -278,9 +353,14 @@
 }
 
 .off {
+  grid-row: 4;
   padding: var(--space-8) var(--space-12);
   border-top: var(--rule-width) solid var(--seam);
   color: var(--ink-muted);
+}
+
+.composer {
+  grid-row: 5;
 }
 
 /* The room's own composer, tightened to the cell. */
@@ -371,11 +451,14 @@
   }
 }
 
-/* Wide with two rows of rooms: one line per candidate and per summary line; the candidates scroll in their box. */
+/* Wide with two rows of rooms: one line per summary line; candidates keep two lines and scroll in their box. */
 @media (min-width: 1200px) {
-  .grid:not(.oneRow) .candidateText,
   .grid:not(.oneRow) .summary p {
     -webkit-line-clamp: 1;
+  }
+
+  .grid:not(.oneRow) .help {
+    max-height: 140px;
   }
 }
 
@@ -383,6 +466,57 @@
 @media (min-width: 1200px) {
   .grid.oneRow {
     grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+/* One room opened large: it fills the main column, the others sit compact (header and what they want) beside it. */
+@media (min-width: 700px) {
+  .grid.expanded {
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 320px);
+    grid-template-rows: repeat(7, auto) minmax(0, 1fr);
+    grid-auto-rows: auto;
+    align-content: stretch;
+    overflow: hidden;
+  }
+
+  .grid.expanded > .cell[data-expanded] {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+
+  .grid.expanded > .cell[data-compact] {
+    grid-column: 2;
+    grid-template-rows: auto;
+    grid-auto-rows: auto;
+  }
+
+  .cell[data-compact] .summary p {
+    -webkit-line-clamp: 1;
+  }
+
+  .cell[data-compact] .cellTitle {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .cell[data-expanded] .summary p,
+  .cell[data-expanded] .candidateText {
+    display: block;
+  }
+
+  .cell[data-compact] > :is(.wall, .help, .off, .composer),
+  .cell[data-compact] .summary p + p {
+    display: none;
+  }
+
+  .cell[data-expanded] .help {
+    max-height: 36vh;
+  }
+
+  .cell[data-expanded] .more {
+    display: none;
   }
 }
 
@@ -449,9 +583,14 @@
     margin-inline-start: 0;
   }
 
+  .expand {
+    display: none;
+  }
+
   .primary,
   .small,
   .tab,
+  .more,
   .remove {
     min-height: var(--touch-min);
   }

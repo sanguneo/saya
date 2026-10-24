@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { Page, Request, Route } from "playwright-core";
+import type { Locator, Page, Request, Route } from "playwright-core";
 import type { components } from "../../src/contract/decoded";
 import { responseBarrier } from "../harness/browser-barriers";
 import type { Scenario } from "../harness/runner";
@@ -70,6 +70,20 @@ const MOBILE = { width: 390, height: 844 };
 const LIVE = process.env.SAYA_ASSIST_LIVE === "1";
 const ANSWER_TIMEOUT = LIVE ? 120_000 : 10_000;
 
+/** Each candidate's text: how many lines it shows and whether any are cut. */
+function textBoxes(candidates: Locator) {
+  return candidates.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const text = node.children[1] as HTMLElement;
+      const line = Number.parseFloat(getComputedStyle(text).lineHeight);
+      return {
+        lines: Math.round(text.clientHeight / line),
+        clipped: text.scrollHeight > text.clientHeight + 1,
+      };
+    }),
+  );
+}
+
 function assert(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
@@ -84,10 +98,20 @@ async function stubAssist(page: Page) {
           user: "현지님",
           prefix: "",
           prefixOn: false,
+          agent: "오모냥",
         },
       });
     }
-    const { room } = request.postDataJSON() as { room: string };
+    const { room, more } = request.postDataJSON() as {
+      room: string;
+      more?: boolean;
+    };
+    const writer = room.includes("문의 7")
+      ? { kind: "model", fallback: true }
+      : { kind: "agent", name: "오모냥" };
+    if (room.includes("문의 6") && more !== true) {
+      return route.fulfill({ json: { needMore: true, writer } });
+    }
     if (room.includes("문의 3")) {
       return route.fulfill({
         status: 502,
@@ -105,6 +129,7 @@ async function stubAssist(page: Page) {
           candidates: [],
           hidden: null,
           check: "CHECK_FAILED",
+          writer,
         },
       });
     }
@@ -126,9 +151,17 @@ async function stubAssist(page: Page) {
             tone: 0.75,
             risk: 0.03,
           },
+          {
+            text: "안녕하세요 :) 문의 주셔서 감사해요. 말씀하신 내용은 담당자와 일정을 먼저 맞춰 본 뒤, 가능한 시간과 준비할 것을 정리해서 오늘 안으로 다시 자세히 안내해 드릴게요.",
+            score: 65,
+            fit: 0.55,
+            tone: 0.7,
+            risk: 0.03,
+          },
         ],
         hidden: { risky: 1, offTopic: 0 },
         check: "ok",
+        writer,
       },
     });
   });
@@ -161,13 +194,16 @@ export const scenario: Scenario = {
     });
 
     const assistPosts: string[] = [];
+    const assistBodies: { room: string; more?: boolean }[] = [];
     const answers: unknown[] = [];
     const sends: { dryRun: boolean; text: string }[] = [];
     const sent = () => sends.length;
     page.on("request", (request) => {
       const path = new URL(request.url()).pathname;
       if (path === "/assist" && request.method() === "POST") {
-        assistPosts.push((request.postDataJSON() as { room: string }).room);
+        const body = request.postDataJSON() as { room: string; more?: boolean };
+        assistPosts.push(body.room);
+        assistBodies.push(body);
       }
       if (path === "/api/send") {
         sends.push(request.postDataJSON() as { dryRun: boolean; text: string });
@@ -210,7 +246,8 @@ export const scenario: Scenario = {
     );
     log("grid", { cells: 8 });
 
-    // Every room ends with a customer's message, so all eight ask once.
+    // Every room ends with a customer's message, so all eight ask once; the
+    // one whose agent wants older history asks a second time, with more.
     await page.waitForFunction(
       () =>
         [...document.querySelectorAll('[data-ui="assist-help"]')].filter(
@@ -223,9 +260,10 @@ export const scenario: Scenario = {
       { timeout: ANSWER_TIMEOUT },
     );
     log("assist-posts", { count: assistPosts.length });
+    const expectedAsks = LIVE ? 8 : 9;
     assert(
-      assistPosts.length === 8,
-      `Expected 8 asks, saw ${assistPosts.length}`,
+      assistPosts.length >= 8 && (LIVE || assistPosts.length === expectedAsks),
+      `Expected ${expectedAsks} asks, saw ${assistPosts.length}`,
     );
 
     // Cell geometry: four columns, two rows, inside the viewport.
@@ -261,6 +299,27 @@ export const scenario: Scenario = {
           .locator('[data-ui="thread-wall"] [data-ui="message"]')
           .count()) > 0,
         "A failed cell lost its wall",
+      );
+      const wanting = assistBodies.filter((body) =>
+        body.room.includes("문의 6"),
+      );
+      assert(
+        wanting.length === 2 &&
+          wanting[0]?.more !== true &&
+          wanting[1]?.more === true,
+        "need_more did not ask again once, with more",
+      );
+      const writerOf = async (index: number) =>
+        cells
+          .nth(index)
+          .locator('[data-ui="assist-writer"]')
+          .getAttribute("data-kind");
+      assert(
+        (await writerOf(0)) === "agent" &&
+          (await writerOf(
+            rooms.findIndex((room) => room.title.includes("문의 7")),
+          )) === "fallback",
+        "Cards do not say who wrote the candidates",
       );
       const unchecked = cells.nth(
         rooms.findIndex((room) => room.title.includes("문의 4")),
@@ -336,7 +395,80 @@ export const scenario: Scenario = {
     assert(assistPosts.length === before + 1, "A new message did not ask once");
     log("live-update", { asked: assistPosts.length - before });
 
+    // The wall marks rows scrolled out above it, so a cut-off bubble reads as scroll.
+    assert(
+      (await first
+        .locator('[data-ui="assist-wall"]')
+        .getAttribute("data-above")) !== null,
+      "A scrolled wall has no top fade",
+    );
+    // Candidates keep at least two lines in the grid; a clipped one opens whole.
+    const gridTexts = await textBoxes(
+      page.locator('[data-ui="assist-cell"] [data-ui="assist-candidate"]'),
+    );
+    if (!LIVE) {
+      assert(
+        gridTexts.every((box) => !box.clipped || box.lines >= 2),
+        `A clipped candidate shows under two lines: ${JSON.stringify(gridTexts)}`,
+      );
+      const more = first.locator('[data-ui="assist-more"]');
+      assert(
+        (await more.count()) === 1,
+        "A clipped candidate has no 전체 보기",
+      );
+      await more.click();
+      const [opened] = await textBoxes(
+        first.locator("li[data-open] [data-ui='assist-candidate']"),
+      );
+      assert(opened && !opened.clipped, "전체 보기 left the candidate clipped");
+      await screenshot("assist-1440-more");
+    }
+
+    // 펼치기: one room large, the rest compact beside it, nothing remounted or asked again.
+    const asksBeforeExpand = assistPosts.length;
+    const big = cells.nth(4);
+    await big.locator('[data-ui="assist-expand"]').click();
+    await page.locator('[data-ui="assist-cell"][data-expanded]').waitFor();
+    const widths = await cells.evaluateAll((nodes) =>
+      nodes.map((node) => node.getBoundingClientRect().width),
+    );
+    const bigWidth = widths[4] ?? 0;
+    assert(
+      widths.every((width, index) => index === 4 || width * 2 < bigWidth),
+      `Expanded room is not the large one: ${widths.join()}`,
+    );
+    const expandedTexts = await textBoxes(
+      big.locator('[data-ui="assist-candidate"]'),
+    );
+    assert(
+      expandedTexts.every((box) => !box.clipped),
+      "An expanded room clips a candidate",
+    );
+    const bigWall = await big
+      .locator('[data-ui="thread-wall"]')
+      .evaluate((node) => ({
+        scroll: node.scrollHeight - node.clientHeight,
+        rows: node.querySelectorAll('[data-ui="message"]').length,
+      }));
+    assert(
+      bigWall.rows > 0 && bigWall.scroll <= 1,
+      `Expanded wall still cuts its conversation: ${JSON.stringify(bigWall)}`,
+    );
+    assert(
+      assistPosts.length === asksBeforeExpand,
+      "Expanding remounted a room and asked again",
+    );
+    log("expand", { widths, expandedTexts, bigWall });
+    await screenshot(LIVE ? "live-expanded-1440" : "assist-expanded-1440");
     await page.setViewportSize(MIDDLE);
+    await screenshot(LIVE ? "live-expanded-1024" : "assist-expanded-1024");
+    await big.locator('[data-ui="assist-expand"]').click();
+    assert(
+      (await page.locator('[data-ui="assist-cell"][data-expanded]').count()) ===
+        0,
+      "접기 did not return to the grid",
+    );
+
     await screenshot(LIVE ? "live-1024" : "assist-1024");
     await page.setViewportSize(MOBILE);
     const visible = await cells.evaluateAll(

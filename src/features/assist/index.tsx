@@ -181,10 +181,12 @@ export default function AssistScreen({
   const [prefixOn, setPrefixOn] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [active, setActive] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const order = useSlice(stores, "rooms.order");
   const known = useMemo(() => new Set(order), [order]);
   const shown = picks.filter((id) => known.has(id));
   const current = shown.includes(active ?? "") ? active : (shown[0] ?? null);
+  const large = expanded !== null && shown.includes(expanded) ? expanded : null;
 
   useEffect(() => {
     let live = true;
@@ -283,7 +285,11 @@ export default function AssistScreen({
         </div>
       ) : (
         <div
-          className={cx(styles.grid, shown.length <= 4 && styles.oneRow)}
+          className={cx(
+            styles.grid,
+            shown.length <= 4 && styles.oneRow,
+            large !== null && styles.expanded,
+          )}
           data-ui="assist-grid"
           data-count={shown.length}
         >
@@ -297,6 +303,12 @@ export default function AssistScreen({
               settings={settings}
               prefixOn={prefixOn}
               active={id === current}
+              expanded={id === large}
+              compact={large !== null && id !== large}
+              onExpand={(roomId) => {
+                setExpanded(roomId);
+                if (roomId) setActive(roomId);
+              }}
               onRemove={(roomId) =>
                 change(picks.filter((item) => item !== roomId))
               }
