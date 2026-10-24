@@ -1,4 +1,6 @@
 import { build, preview } from "vite";
+import { assistConfig } from "../../server/assist";
+import { assistPlugin } from "../../server/assist-plugin";
 
 const root = process.env.SAYA_QA_ROOT;
 const bridge = process.env.SAYA_QA_BRIDGE;
@@ -13,6 +15,8 @@ const server = await preview({
   configFile: false,
   logLevel: "error",
   plugins: [
+    // Off unless the QA run sets SAYA_ASSIST_CONFIG; scenarios otherwise stub /assist.
+    assistPlugin(assistConfig(process.env)),
     {
       name: "synthetic-qa-blank",
       configurePreviewServer(previewServer) {

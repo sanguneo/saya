@@ -1,0 +1,25 @@
+{
+  "user": {
+    "name": "현지님",
+    "toneExamples": [
+      "안녕하세요 :) 문의 주셔서 감사합니다. 바로 확인해 볼게요!",
+      "네, 가능하세요. 편하신 시간 알려 주시면 맞춰 드릴게요.",
+      "확인해 보고 오늘 안으로 다시 연락드릴게요. 조금만 기다려 주세요."
+    ]
+  },
+  "send": {
+    "prefix": "",
+    "prefixOn": false
+  },
+  "kakaoCore": "http://127.0.0.1:8765",
+  "llm": {
+    "url": "http://127.0.0.1:10200/v1",
+    "model": "replace-with-a-model-id",
+    "keyEnv": "SAYA_ASSIST_LLM_KEY"
+  },
+  "jev": {
+    "url": "https://api.experientiallabs.ai",
+    "model": "jev-latest",
+    "keyFile": "~/.config/saya/jev.key"
+  }
+}

@@ -1,3 +1,4 @@
+import { assistConfig, handleAssist } from "./assist";
 import { handleUnfurl } from "./handler";
 import { handleHub } from "./hub";
 import {
@@ -30,6 +31,7 @@ if (token !== undefined && token.length < MIN_REGISTER_TOKEN_LENGTH) {
   process.exit(1);
 }
 const registry = token ? new Registry() : null;
+const assist = assistConfig(env);
 
 Bun.serve({
   port,
@@ -38,6 +40,11 @@ Bun.serve({
   async fetch(request, server) {
     const unfurled = await handleUnfurl(request);
     if (unfurled) return unfurled;
+    // A model and the checker can take longer than the idle limit; their own timeouts bound them.
+    server.timeout(request, 120);
+    const assisted = await handleAssist(request, assist);
+    if (assisted) return assisted;
+    server.timeout(request, 30);
     if (registry) {
       // A stream or a large upload is quiet for longer than any idle limit;
       // the upstream, or the browser leaving, is what ends it.

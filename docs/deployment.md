@@ -260,3 +260,35 @@ continues to call relative `/api` paths only.
 A successful unauthenticated `GET /health` shows only that the core is alive.
 It does not prove the bearer configuration is valid or that authenticated routes
 will succeed.
+
+## 문의 모아보기 reply help (optional)
+
+`#/assist` (문의 모아보기) draws up to eight KakaoTalk rooms side by side. It
+works without anything below: each room keeps its live wall and its own
+composer, whose 보내기 still asks for confirmation before `/api/send`.
+
+Reply help is `/assist` on saya's server, off by default and **not** part of
+either messenger contract. When it is on, each room shows what the other person
+wants and up to three reply candidates: the browser sends the newest 30 text
+messages it already holds for that room to saya's server, which asks an
+OpenAI-compatible model for a summary and three candidates, then asks JEV
+(`POST <jev.url>/v1/systemone`, one call per room) how well each fits, whether
+it sounds like the configured person, and whether it discloses anything. Risky
+or off-topic candidates are hidden; if JEV does not answer, no candidate is
+shown. A candidate only fills the input box; nothing is sent automatically.
+
+Everything that changes per person is one file, named by `SAYA_ASSIST_CONFIG`
+(see `deploy/assist.config.example.json`):
+
+- `user.name`, `user.toneExamples`: whose tone the model writes in and JEV checks.
+- `send.prefix`, `send.prefixOn`: text put before a candidate (empty means none;
+  the toggle is then disabled).
+- `kakaoCore`: where the development proxy finds the KakaoTalk core when
+  `SAYA_CORE_URL` is unset. Production still reaches cores by registration.
+- `llm.url`, `llm.model`, `llm.keyEnv` (the name of the env variable holding the key).
+- `jev.url`, `jev.model`, `jev.keyFile` (a path to a file holding the key).
+
+`GET /assist` returns `{ enabled, user, prefix, prefixOn }` and nothing about
+addresses or keys. Point the model at one you are allowed to send these
+conversations to. Route `/assist` to saya's server after the write rules, as
+for `/unfurl`.
