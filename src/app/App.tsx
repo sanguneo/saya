@@ -43,6 +43,7 @@ import styles from "./App.module.css";
 const AdapterOutlet = lazy(() => import("./AdapterOutlets"));
 const SettingsOutlet = lazy(() => import("./SettingsOutlet"));
 const Inbox = lazy(() => import("../features/inbox"));
+const AssistScreen = lazy(() => import("../features/assist"));
 
 import type { KakaoStatus } from "../features/adapters";
 import { useAdapterTabs } from "./adapterTabs";
@@ -365,6 +366,33 @@ export function App({ session }: { session?: Session }) {
       void coordinator.stop();
     };
   }, [own]);
+
+  if (route.kind === "assist")
+    return (
+      <div className={styles.shell} data-ui="app" data-route="assist">
+        <Rail
+          className={styles.rail}
+          stores={own.stores}
+          mode={null}
+          page="assist"
+          kakaoVisible={kakaoVisible}
+          adapters={adapters}
+        />
+        <main
+          className={cx(styles.thread, styles.wide)}
+          data-ui="assist-outlet"
+        >
+          <Suspense fallback={null}>
+            <AssistScreen
+              stores={own.stores}
+              windows={own.windows}
+              http={own.http}
+              cache={own.cache}
+            />
+          </Suspense>
+        </main>
+      </div>
+    );
 
   if (mode === null)
     return (

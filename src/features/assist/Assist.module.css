@@ -1,0 +1,462 @@
+/* 문의 모아보기: a header, then up to eight rooms in a grid (4×2 wide, 2 columns middle, one tab at a time on a phone). */
+.screen {
+  display: grid;
+  /* The outlet keeps a header row for rooms; this screen takes both rows. */
+  grid-row: 1 / -1;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--field-list);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  border-bottom: var(--rule-width) solid var(--seam);
+  background: var(--field-head, var(--field-wall));
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+}
+
+.count,
+.quiet {
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+
+.quiet {
+  margin: 0;
+}
+
+.primary,
+.small {
+  min-height: var(--space-32);
+  padding: var(--space-4) var(--space-16);
+  border: 0;
+  border-radius: var(--radius-badge);
+  background: var(--field-input);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-meta);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary {
+  border: var(--rule-width) solid var(--accent-send-inset);
+  background: var(--accent-send);
+  color: var(--door-ink);
+}
+
+.small {
+  min-height: 28px;
+  padding: 2px var(--space-12);
+}
+
+.small:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-inline-start: auto;
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
+.toggle:has(input:disabled) {
+  opacity: 0.7;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: var(--space-8);
+  min-height: 0;
+  padding: var(--space-8);
+  overflow: hidden;
+}
+
+.tabs {
+  display: none;
+}
+
+.empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-16);
+  padding: var(--space-32);
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+/* One room: header, what they want, the live wall, help, composer. */
+.cell {
+  display: grid;
+  grid-template-rows: auto auto minmax(72px, 1fr) auto auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: var(--rule-width) solid var(--seam);
+  border-radius: var(--radius-box);
+  background: var(--field-wall);
+}
+
+.cellHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
+  border-bottom: var(--rule-width) solid var(--seam);
+  background: var(--field-head, var(--field-wall));
+}
+
+.cellTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-body);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-badge);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--hover-wall);
+}
+
+.remove svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.summary {
+  display: grid;
+  gap: 2px;
+  padding: 6px var(--space-12);
+  border-bottom: var(--rule-width) solid var(--seam);
+  background: var(--fill-wall);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+
+.summary p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.wall {
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+
+.wall > * {
+  min-height: 0;
+}
+
+.help {
+  display: grid;
+  gap: 6px;
+  max-height: 184px;
+  min-height: 0;
+  padding: var(--space-8) var(--space-12);
+  overflow-y: auto;
+  border-top: var(--rule-width) solid var(--seam);
+  background: var(--field-list);
+}
+
+.helpHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.helpTitle {
+  margin: 0;
+  font-size: var(--text-meta);
+  font-weight: 700;
+}
+
+.candidates {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--space-8);
+  width: 100%;
+  padding: 6px var(--space-8);
+  border: var(--rule-width) solid var(--seam);
+  border-radius: var(--radius-row);
+  background: var(--field-wall);
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.candidate:hover {
+  background: var(--hover-wall);
+}
+
+.score {
+  grid-row: span 2;
+  align-self: start;
+  min-width: 2.2em;
+  padding: 1px 6px;
+  border-radius: var(--radius-badge);
+  background: var(--fill-wall);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: center;
+}
+
+.candidateText {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.reason {
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
+.problem,
+.off {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+
+.off {
+  padding: var(--space-8) var(--space-12);
+  border-top: var(--rule-width) solid var(--seam);
+  color: var(--ink-muted);
+}
+
+/* The room's own composer, tightened to the cell. */
+.composer :global([data-ui="composer"]) {
+  padding: var(--space-4) var(--space-8) var(--space-8);
+}
+
+/* Chooser sheet */
+.sheet {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 32px));
+  padding: 0;
+  border: var(--rule-width) solid var(--seam);
+  border-radius: var(--radius-box);
+  background: var(--field-wall);
+  color: var(--ink);
+}
+
+.sheet[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.sheetHead {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border-bottom: var(--rule-width) solid var(--seam);
+}
+
+.sheetHead h2 {
+  margin: 0;
+  font-size: var(--text-heading);
+}
+
+.sheetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.rows {
+  margin: 0;
+  padding: var(--space-4) 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--touch-min);
+  padding: var(--space-4) var(--space-16);
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--hover-list);
+}
+
+.row:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.rowTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetFoot {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-12) var(--space-16);
+  border-top: var(--rule-width) solid var(--seam);
+}
+
+/* Middle widths: two columns, the grid scrolls. */
+@media (max-width: 1199.98px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(560px, auto);
+    overflow-y: auto;
+  }
+}
+
+/* Wide with two rows of rooms: one line per candidate and per summary line; the candidates scroll in their box. */
+@media (min-width: 1200px) {
+  .grid:not(.oneRow) .candidateText,
+  .grid:not(.oneRow) .summary p {
+    -webkit-line-clamp: 1;
+  }
+}
+
+/* Wide, four rooms or fewer: one row that fills the height. */
+@media (min-width: 1200px) {
+  .grid.oneRow {
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+/* Phone: chips choose the one room shown, which takes the whole area. */
+@media (max-width: 699.98px) {
+  .tabs {
+    display: flex;
+    gap: 6px;
+    padding: var(--space-8);
+    overflow-x: auto;
+    border-bottom: var(--rule-width) solid var(--seam);
+  }
+
+  .tab {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    max-width: 60vw;
+    min-height: var(--space-32);
+    padding: var(--space-4) var(--space-12);
+    border: var(--rule-width) solid var(--seam);
+    border-radius: var(--radius-badge);
+    background: var(--field-wall);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-meta);
+    cursor: pointer;
+  }
+
+  .tab[aria-selected="true"] {
+    border-color: var(--ink);
+    font-weight: 700;
+  }
+
+  .tabTitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(0, 1fr);
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .cell {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .help {
+    max-height: 40dvh;
+  }
+
+  .cell:not([data-active]) {
+    display: none;
+  }
+
+  .toggle {
+    min-height: var(--touch-min);
+    margin-inline-start: 0;
+  }
+
+  .primary,
+  .small,
+  .tab,
+  .remove {
+    min-height: var(--touch-min);
+  }
+
+  .remove {
+    width: var(--touch-min);
+  }
+}

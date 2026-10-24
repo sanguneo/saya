@@ -6,6 +6,7 @@ import type { AdapterTab } from "./adapterTabs";
 import styles from "./Rail.module.css";
 import {
   ALL_HASH,
+  ASSIST_HASH,
   adapterListHash,
   type ListMode,
   ROOMS_HASH,
@@ -17,6 +18,7 @@ const RAIL_COPY = {
   brand: "さや (saya)",
   all: "전체",
   kakao: "카카오",
+  assist: "문의",
   settings: "설정",
   unread: (count: number) =>
     `데스크톱 기준 안 읽음 ${count.toLocaleString("ko-KR")}개`,
@@ -80,7 +82,7 @@ export function Rail({
   /** The list on screen, or null on 설정. */
   mode: ListMode | null;
   /** Which wide view is on screen, when no list is. */
-  page?: "settings" | undefined;
+  page?: "settings" | "assist" | undefined;
   adapters: AdapterTab[];
   className?: string | undefined;
   kakaoVisible?: boolean;
@@ -124,6 +126,22 @@ export function Rail({
               <span className="sr-only">{RAIL_COPY.unread(unread)}</span>
             </span>
           ) : null}
+        </a>
+      ) : null}
+      {kakaoVisible ? (
+        <a
+          className={styles.item}
+          href={ASSIST_HASH}
+          aria-current={page === "assist" || undefined}
+          data-ui="rail-assist"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3.5" y="4" width="7" height="7" rx="1.5" />
+            <rect x="13.5" y="4" width="7" height="7" rx="1.5" />
+            <rect x="3.5" y="13" width="7" height="7" rx="1.5" />
+            <rect x="13.5" y="13" width="7" height="7" rx="1.5" />
+          </svg>
+          <span className={styles.label}>{RAIL_COPY.assist}</span>
         </a>
       ) : null}
       {adapters

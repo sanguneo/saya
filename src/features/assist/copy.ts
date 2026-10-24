@@ -1,0 +1,42 @@
+/** 문의 모아보기's words, plain enough to use without explanation. */
+export const ASSIST_COPY = {
+  title: "문의 모아보기",
+  count: (shown: number, max: number) => `대화 ${shown}/${max}개`,
+  choose: "대화 고르기",
+  untitled: "대화",
+  empty: "같이 볼 대화를 골라 주세요. 최대 8개까지 한 화면에 띄울 수 있어요.",
+  prefix: (prefix: string) => `보낼 때 앞에 "${prefix.trim()}" 붙이기`,
+  noPrefix: "앞에 붙일 말 없음",
+  noPrefixHint: "설정 파일(send.prefix)에 적으면 켤 수 있어요.",
+  tabs: "고른 대화",
+  remove: (title: string) => `${title} 빼기`,
+  want: "원하는 것",
+  open: "아직 답 안 한 질문",
+  candidates: "답변 후보",
+  again: "다시 만들기",
+  loading: "답변 후보를 만들고 있어요…",
+  waiting: "답변 후보를 준비하고 있어요.",
+  nothing: "지금은 답할 메시지가 없어요. 필요하면 '다시 만들기'를 눌러 주세요.",
+  pickHint: "누르면 입력창에 들어가요. 바로 보내지 않아요.",
+  scoreLabel: "추천 점수",
+  noneLeft: "보여 드릴 만한 후보가 없어요. 다시 만들어 보세요.",
+  hidden: (risky: number, offTopic: number) => {
+    const parts = [
+      risky > 0 ? `민감한 내용이 있어 ${risky}개` : "",
+      offTopic > 0 ? `질문과 안 맞아 ${offTopic}개` : "",
+    ].filter((part) => part !== "");
+    return `${parts.join(", ")} 숨겼어요.`;
+  },
+  writerFailed:
+    "답변 후보를 못 만들었어요. 잠시 뒤 '다시 만들기'를 눌러 주세요.",
+  checkFailed:
+    "답변 검사를 못 해서 후보를 숨겼어요. 잠시 뒤 '다시 만들기'를 눌러 주세요.",
+  network: "서버에 연결하지 못해 답변 후보가 없어요.",
+  off: "답변 추천이 꺼져 있어요. 대화 보기와 보내기는 그대로 쓸 수 있어요.",
+  sheet: "같이 볼 대화 고르기",
+  sheetHint: "안 읽은 메시지가 많은 순, 그다음 최근 대화 순이에요.",
+  fill: "안 읽은 순으로 8개 채우기",
+  clear: "모두 빼기",
+  done: "다 골랐어요",
+  full: "8개를 모두 골랐어요. 하나를 빼면 더 고를 수 있어요.",
+} as const;

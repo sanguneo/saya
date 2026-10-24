@@ -4,6 +4,7 @@ import type { AdapterTab } from "./adapterTabs";
 import styles from "./ListTabs.module.css";
 import {
   ALL_HASH,
+  ASSIST_HASH,
   adapterListHash,
   type ListMode,
   ROOMS_HASH,
@@ -14,6 +15,7 @@ const COPY = {
   group: "메신저",
   all: "전체",
   kakao: "카카오",
+  assist: "문의 모아보기",
   settings: "설정",
 } as const;
 
@@ -45,6 +47,14 @@ export function ListTabs({
             label: COPY.kakao,
             href: ROOMS_HASH,
             current: mode.kind === "kakao",
+          },
+          {
+            key: "assist",
+            icon: undefined,
+            mark: undefined,
+            label: COPY.assist,
+            href: ASSIST_HASH,
+            current: false,
           },
         ]
       : []),

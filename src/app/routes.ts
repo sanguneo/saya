@@ -10,6 +10,7 @@ export type Route =
   | { kind: "all" }
   | { kind: "adapter-list"; adapterId: string }
   | { kind: "settings"; tab: SettingsTab }
+  | { kind: "assist" }
   | { kind: "adapter-room"; adapterId: string; roomId: string };
 
 /** Which list the list column shows: everything, KakaoTalk, or one adapter. */
@@ -26,6 +27,8 @@ export const ROOMS_HASH = "#/rooms";
 export const ALL_HASH = "#/all";
 export const SETTINGS_HASH = "#/settings";
 export const ADAPTERS_HASH = "#/settings/connection";
+/** 문의 모아보기: several KakaoTalk rooms on one screen. */
+export const ASSIST_HASH = "#/assist";
 
 export function settingsHash(tab: SettingsTab): string {
   return tab === "theme" ? SETTINGS_HASH : `${SETTINGS_HASH}/${tab}`;
@@ -82,6 +85,7 @@ export function parseHash(hash: string): Route {
   if (tab) return { kind: "settings", tab };
   if (path === "/all") return { kind: "all" };
   if (path === "/rooms") return { kind: "rooms" };
+  if (path === "/assist") return { kind: "assist" };
   try {
     const adapterRoom = ADAPTER_ROOM.exec(path);
     if (adapterRoom?.[1] && adapterRoom[2])

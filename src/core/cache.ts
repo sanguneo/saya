@@ -32,6 +32,8 @@ export const CACHE_LIMITS: Readonly<CacheLimits> = Object.freeze({
   pendingBytes: 1024 * 1024,
 });
 type Limits = Readonly<CacheLimits>;
+/** 문의 모아보기 draws at most this many rooms at once. */
+export const MAX_ON_SCREEN = 8;
 type CapacityReason =
   | GapReason
   | "catalog-bytes"
@@ -72,6 +74,8 @@ export class BoundedCache {
   private readonly pending = new Map<string, Immutable<PendingSend>>();
   private readonly anchors = new Map<string, string>();
   private activeRoomId: string | null = null;
+  /** Rooms drawn side by side (문의 모아보기): never evicted for room count, like the active room. */
+  private readonly onScreen = new Set<string>();
   private messageBytes = 0;
   private catalogBytes = 0;
   private pendingBytes = 0;
@@ -108,6 +112,23 @@ export class BoundedCache {
     this.change(() => {
       this.activeRoomId = roomId;
       if (roomId !== null) this.ensureRoom(roomId);
+      this.enforce();
+    });
+  }
+
+  /**
+   * Keep these rooms resident while they are on screen together. They keep
+   * the inactive message bound; only the room count stops evicting them.
+   */
+  showRooms(roomIds: readonly string[]): void {
+    if (roomIds.length > MAX_ON_SCREEN)
+      throw new RangeError("Too many rooms on screen");
+    this.change(() => {
+      this.onScreen.clear();
+      for (const id of roomIds) {
+        this.onScreen.add(id);
+        this.ensureRoom(id);
+      }
       this.enforce();
     });
   }
@@ -320,7 +341,7 @@ export class BoundedCache {
     }
     while (this.inactiveCount() > this.limits.inactiveRooms) {
       const victim = [...this.rooms.keys()].find(
-        (id) => id !== this.activeRoomId && !this.hasPins(id),
+        (id) => !this.held(id) && !this.hasPins(id),
       );
       if (victim === undefined) {
         this.report("over-capacity", "pinned-capacity", this.activeRoomId);
@@ -328,14 +349,14 @@ export class BoundedCache {
       }
       // If only the new room is evictable, room admission failed rather than displacing a pin.
       const blocked = [...this.rooms.keys()].some(
-        (id) => id !== this.activeRoomId && this.hasPins(id),
+        (id) => !this.held(id) && this.hasPins(id),
       );
       this.evictRoom(victim, "room-lru");
       if (blocked) this.report("over-capacity", "pinned-capacity", victim);
     }
     while (this.messageBytes > this.limits.messageBytes) {
       const inactive = [...this.rooms.keys()].find(
-        (id) => id !== this.activeRoomId && !this.hasPins(id),
+        (id) => !this.held(id) && !this.hasPins(id),
       );
       if (inactive !== undefined) {
         this.evictRoom(inactive, "message-bytes");
@@ -359,11 +380,15 @@ export class BoundedCache {
     }
   }
 
+  /** The active room and the rooms on screen together are not counted against inactiveRooms. */
+  private held(roomId: string): boolean {
+    return roomId === this.activeRoomId || this.onScreen.has(roomId);
+  }
+
   private inactiveCount(): number {
-    return (
-      this.rooms.size -
-      (this.activeRoomId !== null && this.rooms.has(this.activeRoomId) ? 1 : 0)
-    );
+    let count = 0;
+    for (const id of this.rooms.keys()) if (!this.held(id)) count++;
+    return count;
   }
 
   private removeMessage(

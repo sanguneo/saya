@@ -13,6 +13,7 @@ import { type HttpClient, HttpProtocolError } from "../../transport/http";
 import { AttachButton, StagedFile } from "../attach";
 import { useCoreUploadLimit } from "../attach/core";
 import styles from "./Composer.module.css";
+import { takeDraftOffers, withOffer } from "./offer";
 import { ComposerState, type ConsentFingerprint, ImeEnterGuard } from "./state";
 
 type SendResult = components["schemas"]["SendResult"];
@@ -95,9 +96,12 @@ function sendBody(fingerprint: ConsentFingerprint, dryRun: boolean) {
 export const Composer = memo(function Composer({
   http,
   roomId,
+  confirmEvery = false,
 }: {
   http: HttpClient;
   roomId: string;
+  /** Ask before every send, not only one that would clear a desktop draft (문의 모아보기's trial). */
+  confirmEvery?: boolean;
 }) {
   const state = useRef(new ComposerState()).current;
   const ime = useRef(new ImeEnterGuard()).current;
@@ -161,6 +165,23 @@ export const Composer = memo(function Composer({
     setRevision((value) => value + 1);
   };
 
+  // Text offered by another surface fills the box only; sending stays the person's press.
+  // A second offer replaces an untouched first one rather than piling up under it.
+  const lastOffer = useRef<string | null>(null);
+  const takeOffer = useRef((_text: string) => {});
+  takeOffer.current = (text: string) => {
+    const current = state.getDraft(roomId).text;
+    const next =
+      current === lastOffer.current ? text : withOffer(current, text);
+    lastOffer.current = next;
+    changed(next, next.length, next.length);
+    inputRef.current?.focus();
+  };
+  useEffect(
+    () => takeDraftOffers(roomId, (text) => takeOffer.current(text)),
+    [roomId],
+  );
+
   const preview = async () => {
     const fingerprint = requestFingerprint(roomId, state);
     if (fingerprint.text === "") {
@@ -200,14 +221,14 @@ export const Composer = memo(function Composer({
       // Owner's call, 2026-09-30: no confirmation for an ordinary send. The
       // dry run still runs, silently, so a send that would erase what the
       // desktop client is holding as a draft is asked about before it does.
-      if (result.wouldClearDraft !== true) {
+      if (result.wouldClearDraft !== true && !confirmEvery) {
         await post(fingerprint);
         return;
       }
       setConfirmation({
         fingerprint,
         room: result.room,
-        wouldClearDraft: true,
+        wouldClearDraft: result.wouldClearDraft === true,
       });
       setStatus({ kind: "idle" });
     } catch (error) {
