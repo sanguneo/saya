@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { components } from "../../contract/decoded";
 import { type HttpClient, HttpProtocolError } from "../../transport/http";
-import { AttachButton, StagedFile } from "../attach";
+import { AttachButton, pasteImage, StagedFile } from "../attach";
 import { useCoreUploadLimit } from "../attach/core";
 import styles from "./Composer.module.css";
 import { ComposerState, type ConsentFingerprint, ImeEnterGuard } from "./state";
@@ -111,6 +111,12 @@ export const Composer = memo(function Composer({
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [staged, setStaged] = useState<File | null>(null);
   const uploadLimit = useCoreUploadLimit(http);
+  const attachmentBusy =
+    status.kind === "previewing" || status.kind === "posting";
+  const onPick = (file: File) => {
+    setStaged(file);
+    setStatus({ kind: "idle" });
+  };
   const draft = state.getDraft(roomId);
   const visibleConfirmation =
     confirmation?.fingerprint.roomId === roomId ? confirmation : null;
@@ -465,29 +471,17 @@ export const Composer = memo(function Composer({
           onCompositionStart={() => ime.start()}
           onCompositionEnd={() => ime.end()}
           onKeyDown={onKeyDown}
+          onPaste={
+            uploadLimit !== null && !attachmentBusy
+              ? (event) => pasteImage(event, onPick)
+              : undefined
+          }
         />
         <div className={styles.tools}>
           {uploadLimit !== null ? (
             <>
-              <AttachButton
-                photo
-                disabled={
-                  status.kind === "previewing" || status.kind === "posting"
-                }
-                onPick={(file) => {
-                  setStaged(file);
-                  setStatus({ kind: "idle" });
-                }}
-              />
-              <AttachButton
-                disabled={
-                  status.kind === "previewing" || status.kind === "posting"
-                }
-                onPick={(file) => {
-                  setStaged(file);
-                  setStatus({ kind: "idle" });
-                }}
-              />
+              <AttachButton photo disabled={attachmentBusy} onPick={onPick} />
+              <AttachButton disabled={attachmentBusy} onPick={onPick} />
             </>
           ) : null}
           <span className={styles.hint} aria-hidden="true">

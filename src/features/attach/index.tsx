@@ -1,4 +1,4 @@
-import { lazy, useRef } from "react";
+import { type ClipboardEvent, lazy, useRef } from "react";
 import { formatSize } from "../attachments/pages";
 import styles from "./Attach.module.css";
 
@@ -28,6 +28,24 @@ export function pickable(types: readonly string[] | undefined) {
     list === undefined ||
     list.includes((file.type.split(";")[0] ?? "").trim().toLowerCase());
   return { accept, imagesOnly, accepts };
+}
+
+/** The picker stages one file at a time; text-only paste stays with the browser. */
+export function pasteImage(
+  event: Pick<
+    ClipboardEvent<HTMLTextAreaElement>,
+    "clipboardData" | "preventDefault"
+  >,
+  onPick: (file: File) => void,
+) {
+  for (const item of Array.from(event.clipboardData.items)) {
+    if (!item.type.startsWith("image/")) continue;
+    const file = item.getAsFile();
+    if (!file) continue;
+    event.preventDefault();
+    onPick(file);
+    return;
+  }
 }
 
 const CLIP =
