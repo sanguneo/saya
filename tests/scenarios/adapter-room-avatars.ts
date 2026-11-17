@@ -9,7 +9,7 @@ import type { Scenario } from "../harness/runner";
 
 export const scenario: Scenario = {
   id: "adapter-room-avatars",
-  async run({ context, url, log, evidence }) {
+  async run({ context, page: primary, url, log, evidence }) {
     const results: {
       fixture: string;
       picture: boolean;
@@ -19,7 +19,7 @@ export const scenario: Scenario = {
     }[] = [];
     for (const width of [1440, 390]) {
       for (const theme of ["light", "dark"] as const) {
-        const page = await context.newPage();
+        const page = results.length ? await context.newPage() : primary;
         await page.setViewportSize({
           width,
           height: width === 390 ? 844 : 900,
@@ -92,7 +92,7 @@ export const scenario: Scenario = {
           overflow,
         });
         log("room-avatar-case", results.at(-1));
-        await page.close();
+        if (page !== primary) await page.close();
       }
     }
     const disabled = await context.newPage();
