@@ -1,53 +1,16 @@
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import type { AdapterTab } from "../../app/adapterTabs";
 import { adapterRoomHash, roomHash } from "../../app/routes";
-import type { ClientStores, Immutable, RoomSnapshot } from "../../core/stores";
-import { iconUrl } from "../../transport/adapters";
-import {
-  adapterMark,
-  cx,
-  formatTime,
-  RoomAvatar,
-  UnreadBadge,
-  unreadName,
-} from "../../ui";
-import { KAKAO_ICON, ProviderMark } from "../../ui/ProviderMark";
+import type { ClientStores } from "../../core/stores";
+import { iconUrl, mediaUrl, roomFeature } from "../../transport/adapters";
+import { adapterMark, cx, unreadName } from "../../ui";
+import { KAKAO_ICON } from "../../ui/ProviderMark";
 import { problemSentence } from "../adapters/copy";
-import {
-  type AdapterRooms,
-  adapterRoomsSnapshot,
-  subscribeAdapterRooms,
-  watchAdapterRooms,
-} from "../adapters/liveRooms";
+import { useAdapterRooms, useKakaoSnapshots } from "./catalog";
 import { DiscordTree } from "./DiscordTree";
 import { discordPlace, discordTree } from "./discordPlaces";
 import styles from "./Inbox.module.css";
-
-const COPY = {
-  nav: "대화 목록",
-  search: "대화방 이름 검색",
-  searchPlaceholder: "대화방 검색",
-  kakao: "카카오",
-  kakaoLoading: "카카오 대화 목록을 불러오는 중입니다.",
-  adapterLoading: (name: string) => `${name} 방 목록을 불러오는 중입니다.`,
-  adapterProblem: (name: string, sentence: string) =>
-    `${name} 방 목록을 불러오지 못했습니다. ${sentence}`,
-  empty: "표시할 방이 없습니다.",
-  emptySearch: "불러온 대화방 이름 중에 맞는 것이 없습니다.",
-  noText: "텍스트 없는 메시지",
-  me: "나: ",
-  adapterUnread: (count: number) =>
-    `안 읽음 ${count.toLocaleString("ko-KR")}개`,
-  from: (name: string) => `${name} 대화`,
-} as const;
+import { COPY, InboxRow, type Row, sortRows } from "./rows";
 
 export type InboxMode =
   | { kind: "all" }
@@ -65,153 +28,6 @@ export interface InboxProps {
   className?: string | undefined;
   /** The app's own controls beside the heading: theme, agent tools. */
   actions?: ReactNode | undefined;
-}
-
-type Row = {
-  key: string;
-  provider: string;
-  providerName: string;
-  /** Artwork from the connected provider declaration, with an initial fallback. */
-  mark: string;
-  icon?: string | undefined;
-  title: string;
-  at: string | null;
-  preview: string | null;
-  unread: number;
-  unreadLabel: string;
-  href: string;
-  images?: RoomSnapshot["room"]["images"];
-};
-
-/** Re-renders on any change to the catalog order or to one of its rooms. */
-function useKakaoSnapshots(
-  stores: ClientStores,
-  enabled: boolean,
-): Immutable<RoomSnapshot>[] {
-  const version = useRef(0);
-  const [subscribe] = useState(() => (listener: () => void) => {
-    let rooms: (() => void)[] = [];
-    const changed = () => {
-      version.current += 1;
-      listener();
-    };
-    const watch = () => {
-      for (const unsubscribe of rooms) unsubscribe();
-      rooms = stores
-        .getSnapshot("rooms.order")
-        .map((id) => stores.subscribe(`room.${id}`, changed));
-    };
-    const order = stores.subscribe("rooms.order", () => {
-      watch();
-      changed();
-    });
-    watch();
-    return () => {
-      order();
-      for (const unsubscribe of rooms) unsubscribe();
-    };
-  });
-  const cache = useRef<{
-    version: number;
-    enabled: boolean;
-    value: Immutable<RoomSnapshot>[];
-  }>({ version: -1, enabled, value: [] });
-  const read = useCallback(() => {
-    const held = cache.current;
-    if (held.version === version.current && held.enabled === enabled)
-      return held.value;
-    const value = enabled
-      ? stores.getSnapshot("rooms.order").flatMap((id) => {
-          const snapshot = stores.getSnapshot(`room.${id}`);
-          return snapshot ? [snapshot] : [];
-        })
-      : [];
-    cache.current = { version: version.current, enabled, value };
-    return value;
-  }, [stores, enabled]);
-  return useSyncExternalStore(subscribe, read, read);
-}
-
-/** Every adapter's rooms from the shared live store, watched while this list is shown. */
-function useAdapterRooms(ids: string[]): ReadonlyMap<string, AdapterRooms> {
-  const key = ids.join(",");
-  useEffect(() => watchAdapterRooms(key ? key.split(",") : []), [key]);
-  return useSyncExternalStore(
-    subscribeAdapterRooms,
-    adapterRoomsSnapshot,
-    adapterRoomsSnapshot,
-  );
-}
-
-function sortRows(rows: Row[]): Row[] {
-  const time = (row: Row) => (row.at ? Date.parse(row.at) : Number.NaN);
-  return rows.sort((a, b) => {
-    const left = time(a);
-    const right = time(b);
-    if (Number.isNaN(left) !== Number.isNaN(right))
-      return Number.isNaN(left) ? 1 : -1;
-    if (!Number.isNaN(left) && left !== right) return right - left;
-    return a.title.localeCompare(b.title, "ko-KR");
-  });
-}
-
-function InboxRow({
-  row,
-  active,
-  now,
-}: {
-  row: Row;
-  active: boolean;
-  now: Date;
-}) {
-  const time = formatTime(row.at, now);
-  return (
-    <li
-      className={cx(styles.row, active && styles.active)}
-      data-ui="inbox-row"
-      data-provider={row.provider}
-    >
-      <a
-        className={styles.link}
-        href={row.href}
-        aria-current={active ? "page" : undefined}
-      >
-        <span className={styles.avatar}>
-          <RoomAvatar name={row.title} size={48} images={row.images} />
-          <span
-            className={styles.provider}
-            role="img"
-            aria-label={COPY.from(row.providerName)}
-          >
-            <ProviderMark
-              className={styles.mark}
-              src={row.icon}
-              mark={row.mark}
-            />
-          </span>
-        </span>
-        <span className={styles.body}>
-          <span className={styles.top}>
-            <span className={styles.title}>{row.title}</span>
-            {row.at ? (
-              <time className={styles.time} dateTime={time.dateTime ?? ""}>
-                {time.label}
-              </time>
-            ) : null}
-          </span>
-          <span className={styles.bottom}>
-            <span className={styles.preview}>{row.preview}</span>
-            {row.unread > 0 ? (
-              <span className={styles.badge}>
-                <UnreadBadge count={row.unread} />
-                <span className="sr-only">{row.unreadLabel}</span>
-              </span>
-            ) : null}
-          </span>
-        </span>
-      </a>
-    </li>
-  );
 }
 
 /**
@@ -306,6 +122,16 @@ export default function Inbox({
           unread: room.unread,
           unreadLabel: COPY.adapterUnread(room.unread),
           href: adapterRoomHash(id, room.id),
+          images:
+            tab?.connection.kind === "connected" &&
+            roomFeature(
+              tab.connection.capabilities.features,
+              room,
+              "attachments.read",
+            ) &&
+            room.avatar
+              ? [mediaUrl(id, room.avatar)]
+              : undefined,
         });
       }
     }

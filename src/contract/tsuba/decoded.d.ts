@@ -105,8 +105,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The bytes of a file a message carries.
-         * @description Feature `attachments.read`. `id` is the `id` of an entry in a message's `attachments`, or a message's `senderAvatar` when the adapter also declares `avatars.read`. The bytes are someone else's, so the answer is made safe to open at the client's own origin: `content-security-policy: default-src 'none'; sandbox` and `x-content-type-options: nosniff` always; the attachment's own type, served `inline`, only when it is one a browser draws or plays without running anything (JPEG, PNG, GIF, WebP and AVIF images; MP4, WebM and Ogg video; MPEG, Ogg, MP4, AAC, WebM, WAV and FLAC audio); anything else as `application/octet-stream` and `attachment`. An id answers the same bytes for as long as it answers at all (a message whose file is replaced, or a sender who changes their picture, carries a new id), so the answer may be kept in a private cache.
+         * The bytes of an attachment or picture.
+         * @description Feature `attachments.read`. `id` is the `id` of an entry in a message's `attachments`, an optional room's `avatar`, or a message's `senderAvatar` when the adapter also declares `avatars.read`. Room.avatar does not require or imply avatars.read. The bytes are someone else's, so the answer is made safe to open at the client's own origin: `content-security-policy: default-src 'none'; sandbox` and `x-content-type-options: nosniff` always; the attachment's own type, served `inline`, only when it is one a browser draws or plays without running anything (JPEG, PNG, GIF, WebP and AVIF images; MP4, WebM and Ogg video; MPEG, Ogg, MP4, AAC, WebM, WAV and FLAC audio); anything else as `application/octet-stream` and `attachment`. An id answers the same bytes for as long as it answers at all (a message whose file is replaced, or a sender or room whose picture changes, carries a new id), so the answer may be kept in a private cache.
          */
         get: operations["media"];
         put?: never;
@@ -430,6 +430,8 @@ export interface components {
             id: string;
             /** @description What the messenger's own client shows as the room's name. */
             title: string;
+            /** @description Optional opaque GET /media id for the room picture, supported when attachments.read is declared and enabled for this room. Changes when the picture changes; the same id always serves the same bytes while available. Omit for private, missing or failed picture lookups. Never a raw messenger URL. Does not require or imply avatars.read, which remains Message.senderAvatar. */
+            avatar?: string;
             /** @description `direct`: one other account (person or bot). `group`: several members who can all write. `channel`: a broadcast most members only read. */
             kind: string;
             /** @description The messenger's own unread count for this account. */

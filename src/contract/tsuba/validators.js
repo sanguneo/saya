@@ -2366,49 +2366,47 @@ function validate113(data, { instancePath = "", parentData, parentDataProperty, 
             var valid0 = true;
           }
           if (valid0) {
-            if (data.kind !== undefined) {
+            if (data.avatar !== undefined) {
+              let data2 = data.avatar;
               const _errs5 = errors;
-              if (typeof data.kind !== "string") {
-                validate113.errors = [{ instancePath: instancePath + "/kind", schemaPath: "#/properties/kind/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
-                return false;
+              if (errors === _errs5) {
+                if (typeof data2 === "string") {
+                  if (func1(data2) < 1) {
+                    validate113.errors = [{ instancePath: instancePath + "/avatar", schemaPath: "#/properties/avatar/minLength", keyword: "minLength", params: { limit: 1 }, message: "must NOT have fewer than 1 characters" }];
+                    return false;
+                  }
+                } else {
+                  validate113.errors = [{ instancePath: instancePath + "/avatar", schemaPath: "#/properties/avatar/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
+                  return false;
+                }
               }
               var valid0 = _errs5 === errors;
             } else {
               var valid0 = true;
             }
             if (valid0) {
-              if (data.unread !== undefined) {
-                let data3 = data.unread;
+              if (data.kind !== undefined) {
                 const _errs7 = errors;
-                if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3)) && isFinite(data3))) {
-                  validate113.errors = [{ instancePath: instancePath + "/unread", schemaPath: "#/properties/unread/type", keyword: "type", params: { type: "integer" }, message: "must be integer" }];
+                if (typeof data.kind !== "string") {
+                  validate113.errors = [{ instancePath: instancePath + "/kind", schemaPath: "#/properties/kind/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
                   return false;
-                }
-                if (errors === _errs7) {
-                  if (typeof data3 == "number" && isFinite(data3)) {
-                    if (data3 < 0 || isNaN(data3)) {
-                      validate113.errors = [{ instancePath: instancePath + "/unread", schemaPath: "#/properties/unread/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
-                      return false;
-                    }
-                  }
                 }
                 var valid0 = _errs7 === errors;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.lastActivityAt !== undefined) {
-                  let data4 = data.lastActivityAt;
+                if (data.unread !== undefined) {
+                  let data4 = data.unread;
                   const _errs9 = errors;
+                  if (!(typeof data4 == "number" && (!(data4 % 1) && !isNaN(data4)) && isFinite(data4))) {
+                    validate113.errors = [{ instancePath: instancePath + "/unread", schemaPath: "#/properties/unread/type", keyword: "type", params: { type: "integer" }, message: "must be integer" }];
+                    return false;
+                  }
                   if (errors === _errs9) {
-                    if (errors === _errs9) {
-                      if (typeof data4 === "string") {
-                        if (!formats0.validate(data4)) {
-                          validate113.errors = [{ instancePath: instancePath + "/lastActivityAt", schemaPath: "#/properties/lastActivityAt/format", keyword: "format", params: { format: "date-time" }, message: 'must match format "' + "date-time" + '"' }];
-                          return false;
-                        }
-                      } else {
-                        validate113.errors = [{ instancePath: instancePath + "/lastActivityAt", schemaPath: "#/properties/lastActivityAt/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
+                    if (typeof data4 == "number" && isFinite(data4)) {
+                      if (data4 < 0 || isNaN(data4)) {
+                        validate113.errors = [{ instancePath: instancePath + "/unread", schemaPath: "#/properties/unread/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 }, message: "must be >= 0" }];
                         return false;
                       }
                     }
@@ -2418,42 +2416,20 @@ function validate113(data, { instancePath = "", parentData, parentDataProperty, 
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.lastMessage !== undefined) {
-                    let data5 = data.lastMessage;
+                  if (data.lastActivityAt !== undefined) {
+                    let data5 = data.lastActivityAt;
                     const _errs11 = errors;
                     if (errors === _errs11) {
-                      if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
-                        let missing1;
-                        if (data5.text === undefined && (missing1 = "text") || data5.fromMe === undefined && (missing1 = "fromMe")) {
-                          validate113.errors = [{ instancePath: instancePath + "/lastMessage", schemaPath: "#/properties/lastMessage/required", keyword: "required", params: { missingProperty: missing1 }, message: "must have required property '" + missing1 + "'" }];
-                          return false;
+                      if (errors === _errs11) {
+                        if (typeof data5 === "string") {
+                          if (!formats0.validate(data5)) {
+                            validate113.errors = [{ instancePath: instancePath + "/lastActivityAt", schemaPath: "#/properties/lastActivityAt/format", keyword: "format", params: { format: "date-time" }, message: 'must match format "' + "date-time" + '"' }];
+                            return false;
+                          }
                         } else {
-                          if (data5.text !== undefined) {
-                            const _errs13 = errors;
-                            if (typeof data5.text !== "string") {
-                              validate113.errors = [{ instancePath: instancePath + "/lastMessage/text", schemaPath: "#/properties/lastMessage/properties/text/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
-                              return false;
-                            }
-                            var valid1 = _errs13 === errors;
-                          } else {
-                            var valid1 = true;
-                          }
-                          if (valid1) {
-                            if (data5.fromMe !== undefined) {
-                              const _errs15 = errors;
-                              if (typeof data5.fromMe !== "boolean") {
-                                validate113.errors = [{ instancePath: instancePath + "/lastMessage/fromMe", schemaPath: "#/properties/lastMessage/properties/fromMe/type", keyword: "type", params: { type: "boolean" }, message: "must be boolean" }];
-                                return false;
-                              }
-                              var valid1 = _errs15 === errors;
-                            } else {
-                              var valid1 = true;
-                            }
-                          }
+                          validate113.errors = [{ instancePath: instancePath + "/lastActivityAt", schemaPath: "#/properties/lastActivityAt/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
+                          return false;
                         }
-                      } else {
-                        validate113.errors = [{ instancePath: instancePath + "/lastMessage", schemaPath: "#/properties/lastMessage/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
-                        return false;
                       }
                     }
                     var valid0 = _errs11 === errors;
@@ -2461,15 +2437,59 @@ function validate113(data, { instancePath = "", parentData, parentDataProperty, 
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.features !== undefined) {
-                      const _errs17 = errors;
-                      if (!validate97(data.features, { instancePath: instancePath + "/features", parentData: data, parentDataProperty: "features", rootData, dynamicAnchors })) {
-                        vErrors = vErrors === null ? validate97.errors : vErrors.concat(validate97.errors);
-                        errors = vErrors.length;
+                    if (data.lastMessage !== undefined) {
+                      let data6 = data.lastMessage;
+                      const _errs13 = errors;
+                      if (errors === _errs13) {
+                        if (data6 && typeof data6 == "object" && !Array.isArray(data6)) {
+                          let missing1;
+                          if (data6.text === undefined && (missing1 = "text") || data6.fromMe === undefined && (missing1 = "fromMe")) {
+                            validate113.errors = [{ instancePath: instancePath + "/lastMessage", schemaPath: "#/properties/lastMessage/required", keyword: "required", params: { missingProperty: missing1 }, message: "must have required property '" + missing1 + "'" }];
+                            return false;
+                          } else {
+                            if (data6.text !== undefined) {
+                              const _errs15 = errors;
+                              if (typeof data6.text !== "string") {
+                                validate113.errors = [{ instancePath: instancePath + "/lastMessage/text", schemaPath: "#/properties/lastMessage/properties/text/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
+                                return false;
+                              }
+                              var valid1 = _errs15 === errors;
+                            } else {
+                              var valid1 = true;
+                            }
+                            if (valid1) {
+                              if (data6.fromMe !== undefined) {
+                                const _errs17 = errors;
+                                if (typeof data6.fromMe !== "boolean") {
+                                  validate113.errors = [{ instancePath: instancePath + "/lastMessage/fromMe", schemaPath: "#/properties/lastMessage/properties/fromMe/type", keyword: "type", params: { type: "boolean" }, message: "must be boolean" }];
+                                  return false;
+                                }
+                                var valid1 = _errs17 === errors;
+                              } else {
+                                var valid1 = true;
+                              }
+                            }
+                          }
+                        } else {
+                          validate113.errors = [{ instancePath: instancePath + "/lastMessage", schemaPath: "#/properties/lastMessage/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
+                          return false;
+                        }
                       }
-                      var valid0 = _errs17 === errors;
+                      var valid0 = _errs13 === errors;
                     } else {
                       var valid0 = true;
+                    }
+                    if (valid0) {
+                      if (data.features !== undefined) {
+                        const _errs19 = errors;
+                        if (!validate97(data.features, { instancePath: instancePath + "/features", parentData: data, parentDataProperty: "features", rootData, dynamicAnchors })) {
+                          vErrors = vErrors === null ? validate97.errors : vErrors.concat(validate97.errors);
+                          errors = vErrors.length;
+                        }
+                        var valid0 = _errs19 === errors;
+                      } else {
+                        var valid0 = true;
+                      }
                     }
                   }
                 }
@@ -2486,7 +2506,7 @@ function validate113(data, { instancePath = "", parentData, parentDataProperty, 
   validate113.errors = vErrors;
   return errors === 0;
 }
-validate113.evaluated = { props: { id: true, title: true, kind: true, unread: true, lastActivityAt: true, lastMessage: true, features: true }, dynamicProps: false, dynamicItems: false };
+validate113.evaluated = { props: { id: true, title: true, avatar: true, kind: true, unread: true, lastActivityAt: true, lastMessage: true, features: true }, dynamicProps: false, dynamicItems: false };
 var validateRoomsAnswer = validate115;
 function validate115(data, { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {}) {
   let vErrors = null;

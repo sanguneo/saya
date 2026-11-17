@@ -277,7 +277,7 @@ luminance, computed 2026-09-21; the two r4.1 rows 2026-09-30).
 | `--badge-unread-ink` | `#FFFFFF` | the unread numeral | — |
 | Spacing scale | `4 8 12 16 24 32 48 64` px | — | — |
 | Radius | `bubble 14px` · `badge 999px` · **`door 50%`** · `room row 10px` · `composer 22px` | r3: the door is a circle | — |
-| Avatar | monogram on one of eight tones, hashed from the name | **never a photograph** — no avatar member exists on `Room` or `Message` | — |
+| Avatar | monogram on one of eight tones, hashed from the name, beneath contract-provided pictures | KakaoTalk uses `Room.images` / `Message.senderImage`; adapters may use optional `Room.avatar` / `Message.senderAvatar` through their same-origin media route | — |
 | Border width | `1px` everywhere | no 2px rules | — |
 | Elevation | exactly one: `0 2px 6px rgba(42,39,36,.18)` on the send door only | — | — |
 | Motion | `--dur-cross 300ms` · `--dur-fade 160ms` · `--ease cubic-bezier(.2,.0,.2,1)` | — | — |
