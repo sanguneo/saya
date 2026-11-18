@@ -1,4 +1,5 @@
 import { AdapterRoomBody, useAdapterRoom } from "../features/adapters";
+import { mediaUrl, roomFeature } from "../transport/adapters";
 import { RoomAvatar } from "../ui";
 import styles from "./App.module.css";
 import { Back } from "./Back";
@@ -32,7 +33,21 @@ function AdapterRoomOutlet({
         ) : (
           <Back href={ADAPTERS_HASH} label={COPY.toAdapterList} always />
         )}
-        <RoomAvatar name={title} size={40} />
+        <RoomAvatar
+          name={title}
+          size={40}
+          images={
+            capabilities.kind === "connected" &&
+            roomFeature(
+              capabilities.capabilities.features,
+              room,
+              "attachments.read",
+            ) &&
+            room?.avatar
+              ? [mediaUrl(adapterId, room.avatar)]
+              : undefined
+          }
+        />
         <div className={styles.identity}>
           <h1 className={styles.title}>{title}</h1>
           <p className={styles.subtitle}>
