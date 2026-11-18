@@ -92,6 +92,53 @@ export const scenario: Scenario = {
           overflow,
         });
         log("room-avatar-case", results.at(-1));
+        for (const [id, title] of [
+          ["good", "가상 관측 모임"],
+          ["broken", "가상 사진 없음"],
+          ["absent", "가상 기본 표시"],
+          ["disabled", "가상 미디어 제한"],
+        ] as const) {
+          await page.goto(`${url}/#/adapters/synthetic/${id}`, {
+            waitUntil: "load",
+          });
+          await page
+            .getByRole("heading", { name: title, exact: true })
+            .waitFor();
+          const avatar = page.locator('header [data-ui="avatar"]');
+          if (id === "good") {
+            const image = avatar.locator("img");
+            assert.equal(await image.count(), 1);
+            await image.evaluate(async (element) => {
+              if (element instanceof HTMLImageElement) await element.decode();
+            });
+            assert.equal(
+              await image.evaluate(
+                (element) =>
+                  element instanceof HTMLImageElement &&
+                  element.naturalWidth > 0,
+              ),
+              true,
+            );
+          } else {
+            assert.equal(await avatar.locator("img").count(), 0);
+            assert.equal(await avatar.textContent(), "가");
+          }
+          assert.equal(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth > innerWidth,
+            ),
+            false,
+          );
+          await page.screenshot({
+            path: `${evidence}/header-${fixture}-${id}.png`,
+            fullPage: true,
+          });
+          log("room-header-avatar-case", {
+            fixture,
+            id,
+            picture: id === "good",
+          });
+        }
         if (page !== primary) await page.close();
       }
     }
@@ -103,6 +150,17 @@ export const scenario: Scenario = {
     await disabled.locator('[data-ui="inbox-row"]').last().waitFor();
     assert.equal(
       await disabled.locator('[data-ui="inbox-row"] img').count(),
+      0,
+    );
+    assert.deepEqual(media, []);
+    await disabled.goto(`${url}/#/adapters/synthetic/good`, {
+      waitUntil: "load",
+    });
+    await disabled
+      .getByRole("heading", { name: "가상 관측 모임", exact: true })
+      .waitFor();
+    assert.equal(
+      await disabled.locator('header [data-ui="avatar"] img').count(),
       0,
     );
     assert.deepEqual(media, []);
