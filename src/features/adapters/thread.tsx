@@ -12,7 +12,6 @@ import {
   type AdapterMessage,
   type AdapterOutcome,
   type AdapterProblem,
-  type AdapterReaction,
   type AdapterRoom,
   type Capabilities,
   deleteMessage,
@@ -41,6 +40,16 @@ import { DAY_FORMAT, dayOf } from "../thread/grouping";
 import { problemSentence } from "./copy";
 import { actionMember, groupMessages } from "./group";
 import { adapterConnections, subscribeAdapterRooms } from "./liveRooms";
+import {
+  streamChange,
+  withEdited,
+  withNewer,
+  withOlder,
+  without,
+  withReactions,
+  withReceipts,
+} from "./messages";
+import { receiptOf, receiptRank } from "./receipt";
 import { noteRead, rememberedRoom, rememberRooms } from "./rooms";
 import styles from "./Thread.module.css";
 import {
@@ -92,47 +101,6 @@ type Mode =
   | { kind: "send" }
   | { kind: "reply"; message: AdapterMessage }
   | { kind: "edit"; message: AdapterMessage };
-
-function withNewer(
-  current: AdapterMessage[],
-  newer: AdapterMessage[],
-): AdapterMessage[] {
-  const known = new Set(current.map((message) => message.id));
-  const fresh = newer.filter((message) => !known.has(message.id));
-  return fresh.length ? [...current, ...fresh] : current;
-}
-
-function withOlder(
-  older: AdapterMessage[],
-  current: AdapterMessage[],
-): AdapterMessage[] {
-  const known = new Set(current.map((message) => message.id));
-  return [...older.filter((message) => !known.has(message.id)), ...current];
-}
-
-function withEdited(
-  current: AdapterMessage[],
-  message: AdapterMessage,
-): AdapterMessage[] {
-  return current.map((held) => (held.id === message.id ? message : held));
-}
-
-function without(current: AdapterMessage[], ids: string[]): AdapterMessage[] {
-  const gone = new Set(ids);
-  return current.filter((message) => !gone.has(message.id));
-}
-
-function withReactions(
-  current: AdapterMessage[],
-  id: string,
-  reactions: AdapterReaction[],
-): AdapterMessage[] {
-  return current.map((message) => {
-    if (message.id !== id) return message;
-    const { reactions: _held, ...rest } = message;
-    return reactions.length ? { ...rest, reactions } : rest;
-  });
-}
 
 /** The reconnect backoff: waits `ms`, or less when the view goes away. */
 function pause(ms: number, signal: AbortSignal) {
@@ -476,6 +444,8 @@ export function AdapterThread({
   const canPage = read?.paging === "before-id";
 
   const [messages, setMessages] = useState<AdapterMessage[]>([]);
+  // A receipt may beat the HTTP response that first inserts the sent row.
+  const recentReceipts = useRef(new Map<string, AdapterMessage>());
   const [phase, setPhase] = useState<
     { kind: "loading" } | { kind: "ready" } | AdapterProblem
   >({ kind: "loading" });
@@ -531,8 +501,23 @@ export function AdapterThread({
           : current,
       );
     };
+    // Resume replays new messages only, so what the messenger confirmed about
+    // mine while the stream was down is read again from the newest window.
+    const rereadReceipts = () =>
+      fetchMessages(adapterId, { roomId, limit }, signal).then(
+        (result) => {
+          if (result.kind === "ok")
+            setMessages((current) =>
+              withReceipts(current, result.data.messages),
+            );
+        },
+        () => {
+          // Only an abort rejects.
+        },
+      );
     void (async () => {
       let failures = 0;
+      let connected = false;
       while (!signal.aborted) {
         const since =
           resumable && newest.current ? { [roomId]: newest.current } : {};
@@ -541,38 +526,31 @@ export function AdapterThread({
           signal,
           onEvent(event) {
             if (event.type === "ready") {
+              if (connected || failures > 0) void rereadReceipts();
+              connected = true;
               failures = 0;
               setReconnecting(false);
-            } else if (
-              event.type === "message" &&
-              event.data.message.roomId === roomId
-            ) {
-              setMessages((current) =>
-                withNewer(current, [event.data.message]),
-              );
-            } else if (
-              event.type === "message.edited" &&
-              event.data.message.roomId === roomId
-            ) {
-              setMessages((current) => withEdited(current, event.data.message));
-            } else if (
-              event.type === "message.deleted" &&
-              event.data.roomId === roomId
-            ) {
-              setMessages((current) => without(current, event.data.messageIds));
-              forget(event.data.messageIds);
-            } else if (
-              event.type === "reactions.updated" &&
-              event.data.roomId === roomId
-            ) {
-              setMessages((current) =>
-                withReactions(
-                  current,
-                  event.data.messageId,
-                  event.data.reactions,
-                ),
-              );
+              return;
             }
+            const change = streamChange(event, roomId);
+            if (!change) return;
+            if (event.type === "message.edited") {
+              const message = event.data.message;
+              const receipts = recentReceipts.current;
+              const held = receipts.get(message.id);
+              if (
+                receiptRank(receiptOf(message)) >
+                receiptRank(held && receiptOf(held))
+              ) {
+                receipts.delete(message.id);
+                receipts.set(message.id, message);
+                const oldest = receipts.keys().next().value;
+                if (receipts.size > 100 && oldest !== undefined)
+                  receipts.delete(oldest);
+              }
+            }
+            setMessages(change);
+            if (event.type === "message.deleted") forget(event.data.messageIds);
           },
         });
         if (end.kind === "aborted" || signal.aborted) return;
@@ -843,6 +821,7 @@ export function AdapterThread({
                         }
                         members={members}
                         layout={layout}
+                        direct={room?.kind === "direct"}
                         controlsFor={(member) => ({
                           open: menu === member.id,
                           note: notes[member.id] ?? null,
@@ -889,7 +868,12 @@ export function AdapterThread({
           onCancelMode={() => setMode({ kind: "send" })}
           onStored={(message) => {
             stick.current = true;
-            setMessages((current) => withNewer(current, [message]));
+            const receipt = recentReceipts.current.get(message.id);
+            recentReceipts.current.delete(message.id);
+            setMessages((current) => {
+              const next = withNewer(current, [message]);
+              return receipt ? withReceipts(next, [receipt]) : next;
+            });
           }}
           onEdited={(message) =>
             setMessages((current) => withEdited(current, message))

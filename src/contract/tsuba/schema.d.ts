@@ -527,6 +527,11 @@ export interface components {
             /** Format: date-time */
             editedAt?: string;
             fromMe: boolean;
+            /**
+             * @description Optional confirmed outbound receipt, only on fromMe messages. sent means the messenger's server acknowledged it, delivered means at least one recipient device received it, and read means at least one recipient read or played it. In groups these mean any observed recipient, not everyone. Absent means unknown or unsupported, never an optimistic send. Observed state advances monotonically. Changes use the existing message.edited SSE event with the complete message keyed by roomId and id; the adapter declares message.edited in messages.stream.events. History may advance a known message and emit message.edited, but unseen history is not streamed. The message event remains for new arrivals. No recipient identities are exposed. Resume need not replay receipt changes; reread /messages after reconnecting.
+             * @enum {string}
+             */
+            deliveryStatus?: "sent" | "delivered" | "read";
             /** @description The id of the message this replies to. */
             replyTo?: string;
             /** @description Shared by messages the messenger shows as one album (such as a Telegram media group): they come from one sender and are consecutive in the room, so a client may draw them as one. Each stays its own message for replies, reactions, edits and deletion. Absent when the message stands alone. */
