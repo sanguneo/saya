@@ -289,6 +289,27 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * What the messenger confirmed about my message, in the clock's own type:
+ * over the clock, or in its place on the turns of a run that leave the clock
+ * to the last. The foot offset moves here so both arrangements share it.
+ */
+.stamp {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-bottom: 2px;
+}
+
+.stamp .time {
+  padding-bottom: 0;
+}
+
+.stacked {
+  gap: var(--space-4);
+}
+
 /* A join, a title change: a quiet centred pill, not a turn. */
 .service {
   align-self: center;

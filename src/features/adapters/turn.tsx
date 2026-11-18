@@ -12,6 +12,7 @@ import { Video } from "../../ui/Video";
 import { formatSize } from "../attachments/pages";
 import { LinkCard } from "../linkcard";
 import { sameDiscordRun, sameRun } from "../thread/grouping";
+import { Stamp } from "./stamp";
 import styles from "./Thread.module.css";
 
 export const COPY = {
@@ -483,6 +484,7 @@ export function Turn({
   members = [message],
   controlsFor,
   layout = "bubbles",
+  direct = false,
 }: {
   adapterId: string;
   /** Whether the adapter declares `attachments.read`, so `/media` answers. */
@@ -509,6 +511,8 @@ export function Turn({
    * message left-aligned under one picture, name and time per run.
    */
   layout?: "bubbles" | "lines";
+  /** Whether the room is with one other account, which words a receipt. */
+  direct?: boolean;
 }) {
   if (message.kind === "service")
     return (
@@ -653,16 +657,15 @@ export function Turn({
                 <span className={styles.time}>{COPY.edited}</span>
               ) : null
             ) : (
-              <span className={styles.time}>
-                {message.editedAt ? <span>{COPY.edited}</span> : null}
-                {/* Only the run's last turn shows the time; the others keep it for screen readers. */}
-                <time
-                  className={lastOfRun ? undefined : "sr-only"}
-                  dateTime={last.sentAt}
-                >
-                  {time.label}
-                </time>
-              </span>
+              // Only the bubble wall carries a receipt; Discord's own reading has none.
+              <Stamp
+                members={members}
+                direct={direct}
+                edited={message.editedAt ? COPY.edited : null}
+                label={time.label}
+                sentAt={last.sentAt}
+                last={lastOfRun}
+              />
             )}
             {actionable ? (
               <button

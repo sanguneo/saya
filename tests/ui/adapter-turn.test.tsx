@@ -44,6 +44,8 @@ const render = (
     quoted?: AdapterMessage;
     files?: boolean;
     avatars?: boolean;
+    members?: AdapterMessage[];
+    direct?: boolean;
   } = {},
 ) =>
   renderToStaticMarkup(
@@ -62,6 +64,8 @@ const render = (
         busy={false}
         onOpen={() => {}}
         onAction={() => {}}
+        direct={options.direct ?? false}
+        {...(options.members ? { members: options.members } : {})}
       />
     </ol>,
   );
@@ -163,5 +167,59 @@ describe("a message's tools", () => {
     expect(render(reply, nothing)).toContain(
       "불러온 범위 밖의 메시지에 대한 답장",
     );
+  });
+});
+
+/** The receipt a turn's markup carries: its state for a machine, then its words. */
+const receiptIn = (html: string) =>
+  /data-ui="adapter-receipt" data-receipt="([^"]*)">([^<]*)</.exec(html);
+
+describe("what the messenger confirmed about my message", () => {
+  test("shows each state the contract names", () => {
+    for (const deliveryStatus of ["sent", "delivered", "read"])
+      expect(
+        receiptIn(
+          render(message({ fromMe: true, deliveryStatus }), nothing),
+        )?.[1],
+      ).toBe(deliveryStatus);
+  });
+
+  test("draws nothing for an unknown state, or on someone else's message", () => {
+    for (const value of [
+      message({ fromMe: true }),
+      message({ fromMe: true, deliveryStatus: "queued-somewhere" }),
+      message({ deliveryStatus: "read" }),
+    ])
+      expect(receiptIn(render(value, nothing))).toBeNull();
+  });
+
+  test("an album says only what every one of its messages has confirmed", () => {
+    const claim = (...statuses: (string | undefined)[]) => {
+      const members = statuses.map((deliveryStatus, index) =>
+        message({
+          id: String(index),
+          fromMe: true,
+          groupId: "album",
+          ...(deliveryStatus === undefined ? {} : { deliveryStatus }),
+        }),
+      );
+      const [first = message()] = members;
+      return receiptIn(render(first, nothing, { members }))?.[1] ?? null;
+    };
+
+    expect(claim("read", "delivered")).toBe("delivered");
+    expect(claim("delivered", "read", "sent")).toBe("sent");
+    expect(claim("read", undefined)).toBeNull();
+    expect(claim("read", "queued-somewhere")).toBeNull();
+  });
+
+  test("a room with several readers does not word a receipt as one reader's", () => {
+    const mine = message({ fromMe: true, deliveryStatus: "read" });
+    const words = (direct: boolean) =>
+      receiptIn(render(mine, nothing, { direct }))?.[2];
+
+    expect(words(true)).toBeTruthy();
+    expect(words(false)).toBeTruthy();
+    expect(words(false)).not.toBe(words(true));
   });
 });
